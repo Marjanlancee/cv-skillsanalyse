@@ -126,6 +126,7 @@ export default function App() {
   const [copied, setCopied] = useState(false);
   const fileInputRef = useRef();
   const cvBase64Ref = useRef(null);
+  const [skillNiveaus, setSkillNiveaus] = useState({}); // {key: niveau} voor sliders
 
   // Tweestaps CV state
   const [alleFuncties, setAlleFuncties] = useState([]);
@@ -429,33 +430,100 @@ export default function App() {
               <div style={{ flex: 1, padding: "28px 32px", overflowY: "auto" }}>
 
                 {/* Functies */}
-                {activeResultTab === "functies" && (cvData.functies || []).map((f, i) => (
-                  <div key={i} style={{ background: "#fff", borderRadius: 16, border: "1px solid #e8e7e0", marginBottom: 20, overflow: "hidden" }}>
-                    <div style={{ background: "#1a1a2e", padding: "16px 22px", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
-                      <div>
-                        <div style={{ fontFamily: "Georgia,serif", fontSize: 18, fontWeight: 600, color: "#fff" }}>{f.titel}</div>
-                        <div style={{ fontSize: 13, color: "#8a8aaa", marginTop: 2 }}>{f.bedrijf}</div>
-                      </div>
-                      {f.periode && <span style={{ fontSize: 12, color: "#e8c547", background: "rgba(232,197,71,0.15)", padding: "4px 12px", borderRadius: 20, fontWeight: 500 }}>{f.periode}</span>}
-                    </div>
-                    <div style={{ padding: "18px 22px" }}>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: "#aaa", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 10 }}>Taken & verantwoordelijkheden</div>
-                      <ul style={{ listStyle: "none", marginBottom: 18 }}>
-                        {(f.taken || []).map((t, j) => <li key={j} style={{ fontSize: 13, color: "#444", padding: "4px 0 4px 16px", position: "relative", lineHeight: 1.5 }}><span style={{ position: "absolute", left: 0, color: "#e8c547" }}>→</span>{t}</li>)}
-                      </ul>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                        {[{ label: "Hard skills", key: "hardSkills", bg: "#eef2ff", col: "#3730a3" }, { label: "Soft skills", key: "softSkills", bg: "#fef3c7", col: "#92400e" }].map(({ label, key, bg, col }) => (
-                          <div key={key}>
-                            <div style={{ fontSize: 11, fontWeight: 600, color: "#888", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>{label}</div>
-                            <div>{(f[key] || []).map((s, j) => <span key={j} style={{ fontSize: 12, padding: "4px 11px", borderRadius: 20, fontWeight: 500, background: bg, color: col, display: "inline-block", margin: "0 4px 4px 0" }}>{s}</span>)}</div>
+                {activeResultTab === "functies" && (
+                  <div>
+                    {(cvData.functies || []).map((f, fi) => (
+                      <div key={fi} style={{ background: "#fff", borderRadius: 16, border: "1px solid #e8e7e0", marginBottom: 24, overflow: "hidden" }}>
+                        {/* Functie header */}
+                        <div style={{ background: "#1a1a2e", padding: "16px 22px", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
+                          <div>
+                            <div style={{ fontFamily: "Georgia,serif", fontSize: 18, fontWeight: 600, color: "#fff" }}>{f.titel}</div>
+                            <div style={{ fontSize: 13, color: "#8a8aaa", marginTop: 2 }}>{f.bedrijf}</div>
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                          {f.periode && <span style={{ fontSize: 12, color: "#e8c547", background: "rgba(232,197,71,0.15)", padding: "4px 12px", borderRadius: 20, fontWeight: 500 }}>{f.periode}</span>}
+                        </div>
 
-                {/* WKSW — met skills model erbij */}
+                        {/* Taken */}
+                        <div style={{ padding: "16px 22px", borderBottom: "1px solid #f0efe8" }}>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: "#aaa", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 10 }}>Taken & verantwoordelijkheden</div>
+                          <ul style={{ listStyle: "none" }}>
+                            {(f.taken || []).map((t, j) => (
+                              <li key={j} style={{ fontSize: 13, color: "#444", padding: "4px 0 4px 16px", position: "relative", lineHeight: 1.5 }}>
+                                <span style={{ position: "absolute", left: 0, color: "#e8c547" }}>→</span>{t}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        {/* Skills met sliders */}
+                        <div style={{ padding: "16px 22px" }}>
+                          {[
+                            { label: "Hard Skills — Vakinhoudelijk", skills: f.hardSkills, kleur: "#2980b9" },
+                            { label: "Soft Skills — Gedrag & houding", skills: f.softSkills, kleur: "#27ae60" }
+                          ].map(({ label, skills, kleur }) => (
+                            <div key={label} style={{ marginBottom: 20 }}>
+                              <div style={{ fontSize: 11, fontWeight: 600, color: "#aaa", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 12 }}>{label}</div>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                                {(skills || []).map((s, si) => {
+                                  const skillObj = typeof s === "object" ? s : { naam: s, niveau: 3, niveauLabel: "Gemiddeld", escoSkill: "", escoUri: "", escoDef: "" };
+                                  const sliderKey = `${fi}-${label}-${si}`;
+                                  const huidigNiveau = skillNiveaus[sliderKey] ?? skillObj.niveau ?? 3;
+                                  const niveauLabels = ["", "Beginner", "Basis", "Gemiddeld", "Gevorderd", "Expert"];
+                                  const niveauKleuren = ["", "#e74c3c", "#e67e22", "#f1c40f", "#27ae60", "#2980b9"];
+                                  const uriShort = skillObj.escoUri?.split("/").pop()?.substring(0, 8);
+                                  return (
+                                    <div key={si} style={{ background: "#fafaf8", borderRadius: 12, border: "1px solid #e8e7e0", padding: "14px 16px" }}>
+                                      {/* Skill naam + niveau badge */}
+                                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                                        <div style={{ fontWeight: 600, fontSize: 14, color: "#1a1a2e" }}>{skillObj.naam}</div>
+                                        <span style={{ fontSize: 12, padding: "3px 10px", borderRadius: 20, background: niveauKleuren[huidigNiveau] + "22", color: niveauKleuren[huidigNiveau], fontWeight: 600, border: `1px solid ${niveauKleuren[huidigNiveau]}44`, whiteSpace: "nowrap" }}>
+                                          {huidigNiveau}. {niveauLabels[huidigNiveau]}
+                                        </span>
+                                      </div>
+
+                                      {/* Slider */}
+                                      <div style={{ marginBottom: 12 }}>
+                                        <input type="range" min="1" max="5" value={huidigNiveau}
+                                          onChange={e => setSkillNiveaus(prev => ({ ...prev, [sliderKey]: parseInt(e.target.value) }))}
+                                          style={{ width: "100%", accentColor: niveauKleuren[huidigNiveau], cursor: "pointer" }} />
+                                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#bbb", marginTop: 2 }}>
+                                          <span>Beginner</span><span>Basis</span><span>Gemiddeld</span><span>Gevorderd</span><span>Expert</span>
+                                        </div>
+                                      </div>
+
+                                      {/* ESCO koppeling */}
+                                      {skillObj.escoSkill && (
+                                        <div style={{ background: "#fff", borderRadius: 8, border: "1px solid #e0dfd8", padding: "10px 12px" }}>
+                                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
+                                            <div>
+                                              <div style={{ fontSize: 11, color: "#aaa", fontWeight: 600, letterSpacing: "0.6px", textTransform: "uppercase", marginBottom: 2 }}>ESCO Skill</div>
+                                              <div style={{ fontSize: 13, fontWeight: 600, color: kleur }}>{skillObj.escoSkill}</div>
+                                            </div>
+                                            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
+                                              {uriShort && <span style={{ fontSize: 10, fontFamily: "monospace", color: "#888", background: "#f0efe8", padding: "2px 8px", borderRadius: 6 }}>{uriShort}…</span>}
+                                              {skillObj.escoUri && (
+                                                <a href={skillObj.escoUri} target="_blank" rel="noreferrer"
+                                                  style={{ fontSize: 11, color: "#2980b9", textDecoration: "none", padding: "2px 8px", borderRadius: 6, border: "1px solid #bee3f8", background: "#ebf8ff" }}>
+                                                  ESCO ↗
+                                                </a>
+                                              )}
+                                            </div>
+                                          </div>
+                                          {skillObj.escoDef && <div style={{ fontSize: 12, color: "#666", lineHeight: 1.55 }}>{skillObj.escoDef}</div>}
+                                          {skillObj.escoUri && <div style={{ fontSize: 10, color: "#aaa", marginTop: 6, fontFamily: "monospace", wordBreak: "break-all" }}>{skillObj.escoUri}</div>}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {activeResultTab === "wksw" && (
                   <div>
                     <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", gap: 24, marginBottom: 16, alignItems: "start" }}>
@@ -487,8 +555,9 @@ export default function App() {
 
                 {/* Opleiding */}
                 {activeResultTab === "opleiding" && (
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-                    <Card>
+                  <div>
+                    {/* Opleidingen */}
+                    <Card style={{ marginBottom: 20 }}>
                       <SectionTitle>🎓 Opleidingen & cursussen</SectionTitle>
                       {!(cvData.opleidingen?.length) && <p style={{ fontSize: 13, color: "#888" }}>Geen opleidingsgegevens gevonden.</p>}
                       {(cvData.opleidingen || []).map((o, i) => (
@@ -498,98 +567,75 @@ export default function App() {
                         </div>
                       ))}
                     </Card>
-                    <Card>
-                      <SectionTitle>🎨 Hobby's & interesses</SectionTitle>
+
+                    {/* Hobby's met ESCO skills en sliders */}
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: "#aaa", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 14 }}>🎨 Hobby's & nevenactiviteiten</div>
                       {!(cvData.hobbies?.length) && <p style={{ fontSize: 13, color: "#888" }}>Geen hobby's gevonden in het CV.</p>}
-                      <div>{(cvData.hobbies || []).map((h, i) => <span key={i} style={{ fontSize: 13, padding: "7px 16px", borderRadius: 20, background: "#f5f4f0", color: "#444", border: "1px solid #e0dfd8", fontWeight: 500, display: "inline-block", margin: "0 6px 6px 0" }}>{h}</span>)}</div>
-                    </Card>
-                  </div>
-                )}
-
-
-                {/* ESCO Skills */}
-                {activeResultTab === "esco" && (
-                  <div>
-                    <div style={{ background: "#1a1a2e", borderRadius: 16, padding: "20px 24px", marginBottom: 20 }}>
-                      <div style={{ fontFamily: "Georgia,serif", fontSize: 18, fontWeight: 600, color: "#e8c547", marginBottom: 6 }}>🔗 ESCO Skills — Europese standaard</div>
-                      <p style={{ fontSize: 13, color: "#aaa", margin: 0, lineHeight: 1.6 }}>
-                        Gekoppeld aan de officiële ESCO-database (EU). De URI is de unieke identifier voor terugkoppeling naar het SkillsPortaal.
-                        <span style={{ color: "#e8c547", marginLeft: 8, fontSize: 11, fontWeight: 600 }}>⚠ AI-schatting — valideer URI's via esco.ec.europa.eu</span>
-                      </p>
-                    </div>
-
-                    {!(cvData.escoSkills?.length) && (
-                      <div style={{ background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 12, padding: "16px 20px", color: "#92400e", fontSize: 14 }}>
-                        Geen ESCO-skills gevonden. Probeer het CV opnieuw te analyseren.
-                      </div>
-                    )}
-
-                    {/* Groepeer per type */}
-                    {["Hard", "Soft"].map(type => {
-                      const skills = (cvData.escoSkills || []).filter(s => s.type === type);
-                      if (!skills.length) return null;
-                      return (
-                        <div key={type} style={{ marginBottom: 24 }}>
-                          <div style={{ fontSize: 11, fontWeight: 600, color: "#aaa", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 12 }}>
-                            {type === "Hard" ? "⚙️ Hard Skills — Vakinhoudelijk" : "🤝 Soft Skills — Transversaal"}
+                      {(cvData.hobbies || []).map((h, hi) => {
+                        // Support both old string format and new object format
+                        const hobbyObj = typeof h === "object" ? h : { naam: h, skills: [] };
+                        const niveauLabels = ["", "Beginner", "Basis", "Gemiddeld", "Gevorderd", "Expert"];
+                        const niveauKleuren = ["", "#e74c3c", "#e67e22", "#f1c40f", "#27ae60", "#2980b9"];
+                        return (
+                          <div key={hi} style={{ background: "#fff", borderRadius: 16, border: "1px solid #e8e7e0", marginBottom: 16, overflow: "hidden" }}>
+                            <div style={{ background: "#f5f4f0", padding: "12px 20px", borderBottom: "1px solid #e8e7e0" }}>
+                              <div style={{ fontFamily: "Georgia,serif", fontSize: 16, fontWeight: 600, color: "#1a1a2e" }}>{hobbyObj.naam}</div>
+                            </div>
+                            {(hobbyObj.skills || []).length > 0 && (
+                              <div style={{ padding: "14px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
+                                {hobbyObj.skills.map((s, si) => {
+                                  const sliderKey = `hobby-${hi}-${si}`;
+                                  const huidigNiveau = skillNiveaus[sliderKey] ?? s.niveau ?? 2;
+                                  const uriShort = s.escoUri?.split("/").pop()?.substring(0, 8);
+                                  return (
+                                    <div key={si} style={{ background: "#fafaf8", borderRadius: 12, border: "1px solid #e8e7e0", padding: "14px 16px" }}>
+                                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                                        <div style={{ fontWeight: 600, fontSize: 14, color: "#1a1a2e" }}>{s.naam}</div>
+                                        <span style={{ fontSize: 12, padding: "3px 10px", borderRadius: 20, background: niveauKleuren[huidigNiveau] + "22", color: niveauKleuren[huidigNiveau], fontWeight: 600, border: `1px solid ${niveauKleuren[huidigNiveau]}44`, whiteSpace: "nowrap" }}>
+                                          {huidigNiveau}. {niveauLabels[huidigNiveau]}
+                                        </span>
+                                      </div>
+                                      <div style={{ marginBottom: 12 }}>
+                                        <input type="range" min="1" max="5" value={huidigNiveau}
+                                          onChange={e => setSkillNiveaus(prev => ({ ...prev, [sliderKey]: parseInt(e.target.value) }))}
+                                          style={{ width: "100%", accentColor: niveauKleuren[huidigNiveau], cursor: "pointer" }} />
+                                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#bbb", marginTop: 2 }}>
+                                          <span>Beginner</span><span>Basis</span><span>Gemiddeld</span><span>Gevorderd</span><span>Expert</span>
+                                        </div>
+                                      </div>
+                                      {s.escoSkill && (
+                                        <div style={{ background: "#fff", borderRadius: 8, border: "1px solid #e0dfd8", padding: "10px 12px" }}>
+                                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
+                                            <div>
+                                              <div style={{ fontSize: 11, color: "#aaa", fontWeight: 600, letterSpacing: "0.6px", textTransform: "uppercase", marginBottom: 2 }}>ESCO Skill</div>
+                                              <div style={{ fontSize: 13, fontWeight: 600, color: "#8e44ad" }}>{s.escoSkill}</div>
+                                            </div>
+                                            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
+                                              {uriShort && <span style={{ fontSize: 10, fontFamily: "monospace", color: "#888", background: "#f0efe8", padding: "2px 8px", borderRadius: 6 }}>{uriShort}…</span>}
+                                              {s.escoUri && (
+                                                <a href={s.escoUri} target="_blank" rel="noreferrer"
+                                                  style={{ fontSize: 11, color: "#2980b9", textDecoration: "none", padding: "2px 8px", borderRadius: 6, border: "1px solid #bee3f8", background: "#ebf8ff" }}>
+                                                  ESCO ↗
+                                                </a>
+                                              )}
+                                            </div>
+                                          </div>
+                                          {s.escoDef && <div style={{ fontSize: 12, color: "#666", lineHeight: 1.55 }}>{s.escoDef}</div>}
+                                          {s.escoUri && <div style={{ fontSize: 10, color: "#aaa", marginTop: 6, fontFamily: "monospace", wordBreak: "break-all" }}>{s.escoUri}</div>}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </div>
-                          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                            {skills.map((s, i) => {
-                              const niveauKleur = ["", "#e74c3c", "#e67e22", "#f1c40f", "#27ae60", "#2980b9"][s.niveau] || "#888";
-                              const uriCode = s.escoUri?.split("/").pop()?.substring(0, 8) || "—";
-                              return (
-                                <div key={i} style={{ background: "#fff", borderRadius: 14, border: "1px solid #e8e7e0", padding: "16px 20px" }}>
-                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
-                                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                      <span style={{ fontWeight: 600, fontSize: 15, color: "#1a1a2e" }}>{s.skill}</span>
-                                      <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, background: niveauKleur + "22", color: niveauKleur, fontWeight: 600, border: `1px solid ${niveauKleur}44` }}>
-                                        {s.niveau}. {s.niveauLabel}
-                                      </span>
-                                    </div>
-                                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                      <span style={{ fontSize: 11, color: "#888", background: "#f0efe8", padding: "3px 10px", borderRadius: 20, fontFamily: "monospace" }}>
-                                        {uriCode}…
-                                      </span>
-                                      <a href={s.escoUri} target="_blank" rel="noreferrer"
-                                        style={{ fontSize: 11, color: "#2980b9", textDecoration: "none", padding: "3px 10px", borderRadius: 20, border: "1px solid #bee3f8", background: "#ebf8ff" }}>
-                                        ESCO ↗
-                                      </a>
-                                    </div>
-                                  </div>
-                                  <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6, margin: "0 0 8px" }}>{s.definitie}</p>
-                                  {s.bronFunctie && (
-                                    <div style={{ fontSize: 12, color: "#888" }}>📌 {s.bronFunctie}</div>
-                                  )}
-
-                                  {/* Niveaubalk */}
-                                  <div style={{ marginTop: 10 }}>
-                                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#aaa", marginBottom: 4 }}>
-                                      <span>Beginner</span><span>Basis</span><span>Gemiddeld</span><span>Gevorderd</span><span>Expert</span>
-                                    </div>
-                                    <div style={{ height: 6, background: "#f0efe8", borderRadius: 10, position: "relative" }}>
-                                      <div style={{ height: "100%", borderRadius: 10, background: niveauKleur, width: `${(s.niveau / 5) * 100}%`, transition: "width 0.4s" }} />
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    {/* URI overzicht voor export */}
-                    <div style={{ background: "#f5f4f0", borderRadius: 14, padding: "18px 22px", marginTop: 8 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: "#444", marginBottom: 10 }}>📋 URI-overzicht voor SkillsPortaal export</div>
-                      <div style={{ fontFamily: "monospace", fontSize: 11, color: "#555", lineHeight: 2 }}>
-                        {[...new Map((cvData.escoSkills || []).map(s => [s.escoUri, s])).values()].map((s, i) => (
-                          <div key={i}>{s.skill} → <span style={{ color: "#2980b9" }}>{s.escoUri}</span></div>
-                        ))}
-                      </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
-
                 {/* Verhaal & Top 5 */}
                 {activeResultTab === "verhaal" && (
                   <div style={{ maxWidth: 660 }}>
@@ -907,52 +953,72 @@ ${functiesStr}
 Retourneer ALLEEN een JSON-object (geen uitleg, geen markdown backticks) met EXACT deze structuur:
 
 {
-  "functies": [{"titel":"","bedrijf":"","periode":"","taken":["","","",""],"hardSkills":["","","",""],"softSkills":["","","",""]}],
-  "weten": ["","","",""],
-  "kunnen": ["","","",""],
-  "zijn": ["","","",""],
-  "willen": ["","","",""],
+  "functies": [
+    {
+      "titel": "",
+      "bedrijf": "",
+      "periode": "",
+      "taken": ["", "", "", ""],
+      "hardSkills": [
+        {
+          "naam": "Skill naam",
+          "niveau": 3,
+          "niveauLabel": "Gemiddeld",
+          "escoSkill": "Exact Nederlands ESCO-label",
+          "escoUri": "http://data.europa.eu/esco/skill/[uuid]",
+          "escoDef": "Officiële Nederlandse ESCO-definitie"
+        }
+      ],
+      "softSkills": [
+        {
+          "naam": "Skill naam",
+          "niveau": 3,
+          "niveauLabel": "Gemiddeld",
+          "escoSkill": "Exact Nederlands ESCO-label",
+          "escoUri": "http://data.europa.eu/esco/skill/[uuid]",
+          "escoDef": "Officiële Nederlandse ESCO-definitie"
+        }
+      ]
+    }
+  ],
+  "weten": ["", "", "", ""],
+  "kunnen": ["", "", "", ""],
+  "zijn": ["", "", "", ""],
+  "willen": ["", "", "", ""],
   "drijfveren": "",
   "ontwikkeltip": "",
-  "opleidingen": [{"naam":"","instelling":"","jaar":""}],
-  "hobbies": [""],
-  "verhaal": {"alinea1":"","alinea2":"","alinea3":""},
-  "top5": [{"skill":"","toelichting":""}],
-  "escoSkills": [
+  "opleidingen": [{"naam": "", "instelling": "", "jaar": ""}],
+  "hobbies": [
     {
-      "skill": "Nederlandse ESCO skill-naam (exact label uit ESCO-database)",
-      "type": "Hard of Soft",
-      "niveau": 3,
-      "niveauLabel": "Gemiddeld",
-      "definitie": "Officiële Nederlandse ESCO-definitie van deze skill",
-      "escoUri": "http://data.europa.eu/esco/skill/[uuid]",
-      "bronFunctie": "Functietitel waarvoor deze skill relevant is"
+      "naam": "Hobby of nevenactiviteit naam",
+      "skills": [
+        {
+          "naam": "Skill naam",
+          "niveau": 2,
+          "niveauLabel": "Basis",
+          "escoSkill": "Exact Nederlands ESCO-label",
+          "escoUri": "http://data.europa.eu/esco/skill/[uuid]",
+          "escoDef": "Officiële Nederlandse ESCO-definitie"
+        }
+      ]
     }
-  ]
+  ],
+  "verhaal": {"alinea1": "", "alinea2": "", "alinea3": ""},
+  "top5": [{"skill": "", "toelichting": ""}]
 }
 
-Regels algemeen:
-- Analyseer ALLEEN de hierboven genoemde functies — geen andere functies meenemen.
+Regels:
+- Analyseer ALLEEN de hierboven genoemde functies.
 - Elke functie krijgt exact 4 taken, 4 hardSkills en 4 softSkills.
-- Weten/kunnen/zijn/willen en top5 zijn gebaseerd op deze gekozen functies.
-- Hobby's en nevenactiviteiten altijd volledig meenemen (geen filtering).
+- Elke skill (hard en soft) krijgt een ESCO-koppeling met correct label, URI en definitie.
+- Hobby's en nevenactiviteiten altijd meenemen — geef per hobby 2-3 relevante skills met ESCO-koppeling.
+- Niveau 1=Beginner, 2=Basis, 3=Gemiddeld, 4=Gevorderd, 5=Expert — schat op basis van CV-context.
 - top5 bevat precies 5 items.
 - Verhaal in de ik-vorm, authentiek en krachtig.
 - Ontbrekende info = lege array [].
-
-Regels escoSkills:
-- Genereer 8 tot 12 ESCO-skills die het best aansluiten bij de gekozen functies en het CV.
-- Gebruik UITSLUITEND bestaande skills uit de officiële ESCO-database versie 1.2 (Nederlands).
-- Het "skill" veld is het exacte Nederlandse ESCO-label (bijv. "zelfstandig werken", "gedetailleerd werken").
-- Het "type" veld is "Hard" voor vakinhoudelijke skills, "Soft" voor transversale vaardigheden.
-- Het "niveau" veld is een getal 1-5: 1=Beginner, 2=Basis, 3=Gemiddeld, 4=Gevorderd, 5=Expert.
-- Het "niveauLabel" veld is de bijbehorende tekst: 1=Beginner, 2=Basis, 3=Gemiddeld, 4=Gevorderd, 5=Expert.
-- Het "definitie" veld is de officiële Nederlandse ESCO-definitie van de skill.
-- Het "escoUri" veld is de volledige ESCO URI: http://data.europa.eu/esco/skill/[correcte-uuid].
-- Dezelfde skill mag meerdere keren voorkomen voor verschillende functies (ander niveau per functie).
+- Gebruik UITSLUITEND bestaande ESCO-skills uit de officiële database versie 1.2 (Nederlands).
 - UITSLUITEND het JSON-object retourneren.`;
 }
-
 function drijfverenPrompt(scores, top3) {
   const labels = Object.entries(scores).map(([k, v]) => `${DRIJFVEER_TYPES[k].label}: ${v}/5`).join(", ");
   return `Je bent een loopbaancoach. Schrijf een warm, persoonlijk drijfverenprofiel in het Nederlands.
