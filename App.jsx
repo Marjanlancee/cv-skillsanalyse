@@ -128,6 +128,36 @@ export default function App() {
   const fileInputRef = useRef();
   const cvBase64Ref = useRef(null);
   const [skillNiveaus, setSkillNiveaus] = useState({}); // {key: niveau} voor sliders
+  const [escoDb, setEscoDb] = useState(null); // gecombineerde ESCO database
+
+  // Laad ESCO database eenmalig
+  async function laadEscoDb() {
+    if (escoDb) return escoDb;
+    try {
+      const [hardRes, softRes] = await Promise.all([
+        fetch("https://raw.githubusercontent.com/Marjanlancee/functieprofiel-decompositor/refs/heads/main/esco_hardskills.json"),
+        fetch("https://raw.githubusercontent.com/Marjanlancee/functieprofiel-decompositor/refs/heads/main/esco_softskills.json")
+      ]);
+      const [hard, soft] = await Promise.all([hardRes.json(), softRes.json()]);
+      const lookup = {};
+      [...hard, ...soft].forEach(r => {
+        lookup[r[1]] = { label: r[0], uri: r[3], definitie: r[4] || "" };
+      });
+      setEscoDb(lookup);
+      return lookup;
+    } catch (e) {
+      console.error("ESCO laden mislukt:", e);
+      return {};
+    }
+  }
+
+  function escoVerrijk(skills, db) {
+    return (skills || []).map(s => {
+      if (!s.escoCode || !db[s.escoCode]) return s;
+      const e = db[s.escoCode];
+      return { ...s, escoLabel: e.label, escoUri: e.uri, definitie: e.definitie };
+    });
+  }
 
   // Tweestaps CV state
   const [alleFuncties, setAlleFuncties] = useState([]);
@@ -200,7 +230,22 @@ export default function App() {
         { type: "document", source: { type: "base64", media_type: "application/pdf", data: cvBase64Ref.current } },
         { type: "text", text: prompt }
       ]}], 8000);
-      setCvData(parseJSON(text));
+      const parsed = parseJSON(text);
+      // Verrijk skills met echte ESCO data
+      const db = await laadEscoDb();
+      const verrijkt = {
+        ...parsed,
+        functies: (parsed.functies || []).map(f => ({
+          ...f,
+          hardSkills: escoVerrijk(f.hardSkills, db),
+          softSkills: escoVerrijk(f.softSkills, db),
+        })),
+        hobbies: (parsed.hobbies || []).map(h => {
+          if (typeof h === "string") return h;
+          return { ...h, skills: escoVerrijk(h.skills, db) };
+        }),
+      };
+      setCvData(verrijkt);
       setCvStage("result");
     } catch (e) { setCvError(e.message); setCvStage("error"); }
   }
@@ -463,12 +508,12 @@ export default function App() {
                               <div style={{ fontSize: 11, fontWeight: 600, color: "#aaa", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 12 }}>{label}</div>
                               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                                 {(skills || []).map((s, si) => {
-                                  const skillObj = typeof s === "object" ? s : { naam: s, niveau: 3, niveauLabel: "Gemiddeld", escoLabel: "", escoUri: "", definitie: "" };
+                                  const skillObj = typeof s === "object" ? s : { naam: s, niveau: 3, niveauLabel: "Gemiddeld", escoCode: "", escoLabel: "", escoUri: "", definitie: "" };
                                   const sliderKey = `${fi}-${label}-${si}`;
                                   const huidigNiveau = skillNiveaus[sliderKey] ?? skillObj.niveau ?? 3;
                                   const niveauLabels = ["", "Beginner", "Basis", "Gemiddeld", "Gevorderd", "Expert"];
                                   const niveauKleuren = ["", "#e74c3c", "#e67e22", "#f1c40f", "#27ae60", "#2980b9"];
-                                  const uriShort = skillObj.escoUri?.split("/").pop()?.substring(0, 8);
+                                  const uriShort = skillObj.escoUri ? skillObj.escoUri.split("/").pop()?.substring(0, 8) : (skillObj.escoCode || null);
                                   return (
                                     <div key={si} style={{ background: "#fafaf8", borderRadius: 12, border: "1px solid #e8e7e0", padding: "14px 16px" }}>
                                       {/* Skill naam + niveau badge */}
@@ -950,7 +995,7 @@ Regels:
 
 // Stap B: volledige skills-extractie van specifieke functies
 function CV_SKILLS_PROMPT(functiesStr) {
-  return `Je bent een expert loopbaancoach en CV-analist met kennis van de ESCO-database.
+  return `Je bent een expert loopbaancoach en CV-analist met diepgaande kennis van de ESCO-database v1.2 (Nederlands).
 
 Analyseer het meegestuurde CV, maar focus ALLEEN op de volgende functies:
 ${functiesStr}
@@ -966,12 +1011,10 @@ Retourneer ALLEEN een JSON-object (geen uitleg, geen markdown backticks) met EXA
       "taken": ["", "", "", ""],
       "hardSkills": [
         {
-          "naam": "Skill naam (Nederlands, begrijpelijk)",
+          "naam": "Skill naam (begrijpelijk Nederlands)",
           "niveau": 3,
           "niveauLabel": "Gemiddeld",
-          "escoLabel": "Exact Nederlands ESCO-label",
-          "escoUri": "http://data.europa.eu/esco/skill/[uuid]",
-          "definitie": "Korte heldere omschrijving in max 15 woorden wat deze skill inhoudt."
+          "escoCode": "8-karakter ESCO-code bijv. a1b2c3d4"
         }
       ],
       "softSkills": [
@@ -979,9 +1022,7 @@ Retourneer ALLEEN een JSON-object (geen uitleg, geen markdown backticks) met EXA
           "naam": "Skill naam",
           "niveau": 3,
           "niveauLabel": "Gemiddeld",
-          "escoLabel": "Exact Nederlands ESCO-label",
-          "escoUri": "http://data.europa.eu/esco/skill/[uuid]",
-          "definitie": "Korte heldere omschrijving in max 15 woorden wat deze skill inhoudt."
+          "escoCode": "8-karakter ESCO-code bijv. c29aa9d2"
         }
       ]
     }
@@ -1001,9 +1042,7 @@ Retourneer ALLEEN een JSON-object (geen uitleg, geen markdown backticks) met EXA
           "naam": "Skill naam",
           "niveau": 2,
           "niveauLabel": "Basis",
-          "escoLabel": "Exact Nederlands ESCO-label",
-          "escoUri": "http://data.europa.eu/esco/skill/[uuid]",
-          "definitie": "Korte heldere omschrijving in max 15 woorden."
+          "escoCode": "8-karakter ESCO-code"
         }
       ]
     }
@@ -1012,14 +1051,13 @@ Retourneer ALLEEN een JSON-object (geen uitleg, geen markdown backticks) met EXA
   "top5": [{"skill": "", "toelichting": ""}]
 }
 
-Regels:
-- Analyseer ALLEEN de hierboven genoemde functies.
+KRITIEKE REGELS:
+- escoCode is ALTIJD een bestaande 8-karakter code uit de officiële ESCO-database v1.2 Nederlands.
+- Gebruik UITSLUITEND codes die bestaan — verzin geen codes.
+- Voorbeelden van geldige codes: c29aa9d2 (zelfstandig werken), 1f1cdba2 (schema's bedrading), 83e6510b (gedetailleerd werken).
 - Elke functie krijgt exact 4 taken, 4 hardSkills en 4 softSkills.
-- Hobby's en nevenactiviteiten altijd meenemen — geef per hobby 2-3 skills.
+- Hobby's altijd meenemen — geef per hobby 2-3 skills met ESCO-code.
 - Niveau 1=Beginner 2=Basis 3=Gemiddeld 4=Gevorderd 5=Expert.
-- "definitie": schrijf zelf een korte begrijpelijke omschrijving van de skill in max 15 woorden. Geen jargon.
-- "escoLabel": het exacte officiële Nederlandse ESCO-label uit de ESCO-database v1.2.
-- "escoUri": de volledige URI http://data.europa.eu/esco/skill/[uuid].
 - top5 heeft precies 5 items.
 - Verhaal in de ik-vorm, authentiek en krachtig.
 - Ontbrekende info = lege array [].
