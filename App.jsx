@@ -130,7 +130,7 @@ export default function App() {
   const [skillNiveaus, setSkillNiveaus] = useState({}); // {key: niveau} voor sliders
   const [escoDb, setEscoDb] = useState(null); // gecombineerde ESCO database
 
-  // Laad ESCO database eenmalig
+  // Laad ESCO database eenmalig - structuur: [naam, code8, type, uri, definitie]
   async function laadEscoDb() {
     if (escoDb) return escoDb;
     try {
@@ -140,8 +140,9 @@ export default function App() {
       ]);
       const [hard, soft] = await Promise.all([hardRes.json(), softRes.json()]);
       const lookup = {};
+      // Structuur per item: [naam, code8, type, uri, definitie]
       [...hard, ...soft].forEach(r => {
-        lookup[r[1]] = { label: r[0], uri: r[3], definitie: r[4] || "" };
+        if (r[1]) lookup[r[1]] = { label: r[0], uri: r[3], definitie: (r[4] || "").trim() };
       });
       setEscoDb(lookup);
       return lookup;
@@ -543,24 +544,30 @@ export default function App() {
 
                                       {/* ESCO koppeling */}
                                       {(skillObj.escoLabel || skillObj.escoUri) && (
-                                        <div style={{ background: "#f0f4ff", borderRadius: 8, border: "1px solid #c7d2fe", padding: "8px 12px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                            <span style={{ fontSize: 10, fontWeight: 700, color: "#6366f1", background: "#e0e7ff", padding: "2px 6px", borderRadius: 4, letterSpacing: "0.5px" }}>ESCO</span>
-                                            <span style={{ fontSize: 12, fontWeight: 600, color: "#3730a3" }}>{skillObj.escoLabel}</span>
-                                          </div>
-                                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                        <div style={{ background: "#f0f4ff", borderRadius: 8, border: "1px solid #c7d2fe", padding: "10px 12px" }}>
+                                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                              <span style={{ fontSize: 10, fontWeight: 700, color: "#6366f1", background: "#e0e7ff", padding: "2px 6px", borderRadius: 4, letterSpacing: "0.5px" }}>ESCO</span>
+                                              <span style={{ fontSize: 12, fontWeight: 600, color: "#3730a3" }}>{skillObj.escoLabel}</span>
+                                            </div>
                                             {skillObj.escoUri && (
-                                              <>
-                                                <span style={{ fontSize: 10, fontFamily: "monospace", color: "#6366f1", background: "#e0e7ff", padding: "2px 8px", borderRadius: 4 }}>
-                                                  {skillObj.escoUri.split("/").pop()?.substring(0, 8)}…
-                                                </span>
-                                                <a href={skillObj.escoUri} target="_blank" rel="noreferrer"
-                                                  style={{ fontSize: 11, color: "#2980b9", textDecoration: "none", padding: "2px 8px", borderRadius: 4, border: "1px solid #bee3f8", background: "#ebf8ff", whiteSpace: "nowrap" }}>
-                                                  ↗ ESCO
-                                                </a>
-                                              </>
+                                              <a href={skillObj.escoUri} target="_blank" rel="noreferrer"
+                                                style={{ fontSize: 11, color: "#2980b9", textDecoration: "none", padding: "2px 8px", borderRadius: 4, border: "1px solid #bee3f8", background: "#ebf8ff", whiteSpace: "nowrap", flexShrink: 0 }}>
+                                                ↗ ESCO
+                                              </a>
                                             )}
                                           </div>
+                                          {skillObj.escoUri && (
+                                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                              <span style={{ fontSize: 10, fontFamily: "monospace", color: "#6366f1" }}>URI:</span>
+                                              <span
+                                                onClick={() => navigator.clipboard.writeText(skillObj.escoUri)}
+                                                title="Klik om te kopiëren"
+                                                style={{ fontSize: 10, fontFamily: "monospace", color: "#4338ca", background: "#e0e7ff", padding: "2px 8px", borderRadius: 4, cursor: "pointer", wordBreak: "break-all" }}>
+                                                {skillObj.escoUri}
+                                              </span>
+                                            </div>
+                                          )}
                                         </div>
                                       )}
                                     </div>
@@ -598,7 +605,7 @@ export default function App() {
                         ))}
                       </div>
                     </div>
-                    {cvData.drijfveren && <div style={{ background: "#1a1a2e", borderRadius: 14, padding: "18px 22px", marginBottom: 14 }}><div style={{ fontFamily: "Georgia,serif", fontSize: 15, color: "#e8c547", marginBottom: 8 }}>🎯 Drijfveren</div><p style={{ fontSize: 13, color: "#ccc", lineHeight: 1.7, margin: 0 }}>{cvData.drijfveren}</p></div>}
+                    {cvData.drijfveren && <div style={{ background: "#1a1a2e", borderRadius: 14, padding: "18px 22px", marginBottom: 14 }}><div style={{ fontFamily: "Georgia,serif", fontSize: 15, color: "#e8c547", marginBottom: 8 }}>💡 Motivatie op basis van CV</div><p style={{ fontSize: 13, color: "#ccc", lineHeight: 1.7, margin: 0 }}>{cvData.drijfveren}</p></div>}
                     {cvData.ontwikkeltip && <div style={{ background: "#f0fdf4", borderRadius: 14, padding: "18px 22px", border: "1px solid #bbf7d0" }}><div style={{ fontSize: 14, fontWeight: 600, color: "#166534", marginBottom: 8 }}>💡 Ontwikkeltip</div><p style={{ fontSize: 13, color: "#166534", lineHeight: 1.7, margin: 0 }}>{cvData.ontwikkeltip}</p></div>}
                   </div>
                 )}
@@ -655,24 +662,30 @@ export default function App() {
                                       </div>
                                     )}
                                     {(s.escoLabel || s.escoUri) && (
-                                      <div style={{ background: "#f0f4ff", borderRadius: 8, border: "1px solid #c7d2fe", padding: "8px 12px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                          <span style={{ fontSize: 10, fontWeight: 700, color: "#6366f1", background: "#e0e7ff", padding: "2px 6px", borderRadius: 4 }}>ESCO</span>
-                                          <span style={{ fontSize: 12, fontWeight: 600, color: "#3730a3" }}>{s.escoLabel}</span>
-                                        </div>
-                                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                      <div style={{ background: "#f0f4ff", borderRadius: 8, border: "1px solid #c7d2fe", padding: "10px 12px" }}>
+                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                            <span style={{ fontSize: 10, fontWeight: 700, color: "#6366f1", background: "#e0e7ff", padding: "2px 6px", borderRadius: 4 }}>ESCO</span>
+                                            <span style={{ fontSize: 12, fontWeight: 600, color: "#3730a3" }}>{s.escoLabel}</span>
+                                          </div>
                                           {s.escoUri && (
-                                            <>
-                                              <span style={{ fontSize: 10, fontFamily: "monospace", color: "#6366f1", background: "#e0e7ff", padding: "2px 8px", borderRadius: 4 }}>
-                                                {s.escoUri.split("/").pop()?.substring(0, 8)}…
-                                              </span>
-                                              <a href={s.escoUri} target="_blank" rel="noreferrer"
-                                                style={{ fontSize: 11, color: "#2980b9", textDecoration: "none", padding: "2px 8px", borderRadius: 4, border: "1px solid #bee3f8", background: "#ebf8ff" }}>
-                                                ↗ ESCO
-                                              </a>
-                                            </>
+                                            <a href={s.escoUri} target="_blank" rel="noreferrer"
+                                              style={{ fontSize: 11, color: "#2980b9", textDecoration: "none", padding: "2px 8px", borderRadius: 4, border: "1px solid #bee3f8", background: "#ebf8ff", whiteSpace: "nowrap", flexShrink: 0 }}>
+                                              ↗ ESCO
+                                            </a>
                                           )}
                                         </div>
+                                        {s.escoUri && (
+                                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                            <span style={{ fontSize: 10, fontFamily: "monospace", color: "#6366f1" }}>URI:</span>
+                                            <span
+                                              onClick={() => navigator.clipboard.writeText(s.escoUri)}
+                                              title="Klik om te kopiëren"
+                                              style={{ fontSize: 10, fontFamily: "monospace", color: "#4338ca", background: "#e0e7ff", padding: "2px 8px", borderRadius: 4, cursor: "pointer", wordBreak: "break-all" }}>
+                                              {s.escoUri}
+                                            </span>
+                                          </div>
+                                        )}
                                       </div>
                                     )}
                                   </div>
