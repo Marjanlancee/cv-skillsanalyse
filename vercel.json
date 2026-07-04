@@ -1,0 +1,17 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/anthropic/(.*)",
+      "destination": "https://api.anthropic.com/$1"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/anthropic/(.*)",
+      "headers": [
+        { "key": "anthropic-version", "value": "2023-06-01" },
+        { "key": "anthropic-dangerous-direct-browser-access", "value": "true" }
+      ]
+    }
+  ]
+}
