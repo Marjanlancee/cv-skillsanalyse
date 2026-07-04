@@ -83,7 +83,6 @@ const RESULT_TABS = [
   { id: "functies", label: "💼 Functies & Skills" },
   { id: "wksw", label: "🧠 Weten · Kunnen · Zijn · Willen" },
   { id: "opleiding", label: "🎓 Opleiding & Hobby's" },
-  { id: "verhaal", label: "✨ Verhaal & Top 5" },
   { id: "esco", label: "📊 Jouw Skillsprofiel" },
 ];
 
@@ -280,23 +279,26 @@ export default function App() {
       // Verrijk elke functie met echte ESCO-skills via de server
       const functies = await Promise.all((parsed.functies || []).map(async f => {
         try {
+          const taken = f.taken || [];
           const escoRes = await fetch("/api/claude", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               stap: "esco",
               functietitel: f.titel,
-              taken: f.taken || []
+              taken
             })
           });
           const escoData = await escoRes.json();
           if (escoData.taken) {
-            // Maak platte lijsten van hard en soft skills uit alle taken
             const hardSkills = [];
             const softSkills = [];
             escoData.taken.forEach(taak => {
+              // Zoek de echte taaktekst op via het T01/T02 id
+              const taakIdx = parseInt((taak.id || "T01").replace("T","")) - 1;
+              const taakTekst = taken[taakIdx] || taak.id;
               (taak.hardskills || []).forEach(s => {
-                if (!hardSkills.find(x => x.esco_code === s.esco_code)) {
+                if (!hardSkills.find(x => x.escoUri === s.esco_uri && s.esco_uri)) {
                   hardSkills.push({
                     naam: s.esco_label || s.skill,
                     niveau: s.niveau || 3,
@@ -304,12 +306,12 @@ export default function App() {
                     escoLabel: s.esco_label || s.skill,
                     escoUri: s.esco_uri || null,
                     definitie: s.esco_definitie || "",
-                    bronTaak: taak.id
+                    bronTaak: taakTekst
                   });
                 }
               });
               (taak.softskills || []).forEach(s => {
-                if (!softSkills.find(x => x.esco_code === s.esco_code)) {
+                if (!softSkills.find(x => x.escoUri === s.esco_uri && s.esco_uri)) {
                   softSkills.push({
                     naam: s.esco_label || s.softskill,
                     niveau: s.niveau || 3,
@@ -317,7 +319,7 @@ export default function App() {
                     escoLabel: s.esco_label || s.softskill,
                     escoUri: s.esco_uri || null,
                     definitie: s.esco_definitie || "",
-                    bronTaak: taak.id
+                    bronTaak: taakTekst
                   });
                 }
               });
@@ -330,7 +332,47 @@ export default function App() {
         return f;
       }));
 
-      setCvData({ ...parsed, functies });
+      // Verrijk hobby's met ESCO skills
+      const hobbies = await Promise.all((parsed.hobbies || []).map(async h => {
+        const hobbyObj = typeof h === "object" ? h : { naam: h, skills: [] };
+        if (!hobbyObj.naam) return hobbyObj;
+        try {
+          const escoRes = await fetch("/api/claude", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              stap: "esco",
+              functietitel: hobbyObj.naam,
+              taken: [`${hobbyObj.naam} uitoefenen`, `vaardigheden inzetten bij ${hobbyObj.naam}`]
+            })
+          });
+          const escoData = await escoRes.json();
+          if (escoData.taken) {
+            const skills = [];
+            escoData.taken.forEach(taak => {
+              [...(taak.hardskills || []), ...(taak.softskills || [])].forEach(s => {
+                const naam = s.esco_label || s.skill || s.softskill;
+                if (naam && !skills.find(x => x.naam === naam)) {
+                  skills.push({
+                    naam,
+                    niveau: s.niveau || 2,
+                    niveauLabel: ["","Beginner","Basis","Gemiddeld","Gevorderd","Expert"][s.niveau || 2],
+                    escoLabel: s.esco_label || naam,
+                    escoUri: s.esco_uri || null,
+                    definitie: s.esco_definitie || ""
+                  });
+                }
+              });
+            });
+            return { ...hobbyObj, skills: skills.slice(0, 3) };
+          }
+        } catch (e) {
+          console.error("Hobby ESCO mislukt:", e);
+        }
+        return hobbyObj;
+      }));
+
+      setCvData({ ...parsed, functies, hobbies });
       setCvStage("result");
     } catch (e) { setCvError(e.message); setCvStage("error"); }
   }
@@ -602,8 +644,11 @@ export default function App() {
                                   return (
                                     <div key={si} style={{ background: "#fafaf8", borderRadius: 12, border: "1px solid #e8e7e0", padding: "14px 16px" }}>
                                       {/* Skill naam + niveau badge */}
-                                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                                        <div style={{ fontWeight: 600, fontSize: 14, color: "#1a1a2e" }}>{skillObj.naam}</div>
+                                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: skillObj.bronTaak ? 4 : 10 }}>
+                                        <div>
+                                          <div style={{ fontWeight: 600, fontSize: 14, color: "#1a1a2e" }}>{skillObj.naam}</div>
+                                          {skillObj.bronTaak && <div style={{ fontSize: 11, color: "#888", marginTop: 2 }}>🔗 Taak: {skillObj.bronTaak}</div>}
+                                        </div>
                                         <span style={{ fontSize: 12, padding: "3px 10px", borderRadius: 20, background: niveauKleuren[huidigNiveau] + "22", color: niveauKleuren[huidigNiveau], fontWeight: 600, border: `1px solid ${niveauKleuren[huidigNiveau]}44`, whiteSpace: "nowrap" }}>
                                           {huidigNiveau}. {niveauLabels[huidigNiveau]}
                                         </span>
@@ -785,21 +830,31 @@ export default function App() {
 
                 {/* Jouw Skillsprofiel */}
                 {activeResultTab === "esco" && (() => {
-                  // Verzamel alle skills uit alle functies
+                  const niveauLabels = ["", "Beginner", "Basis", "Gemiddeld", "Gevorderd", "Expert"];
+                  const niveauKleuren = ["", "#e74c3c", "#e67e22", "#f1c40f", "#27ae60", "#2980b9"];
+
+                  // Verzamel alle skills, dedupliceer op escoUri, sorteer hoog→laag
                   const alleHard = [];
                   const alleSoft = [];
                   (cvData.functies || []).forEach(f => {
                     (f.hardSkills || []).forEach(s => {
                       const obj = typeof s === "object" ? s : { naam: s };
-                      alleHard.push({ ...obj, bronFunctie: f.titel });
+                      const key = obj.escoUri || obj.naam;
+                      if (!alleHard.find(x => (x.escoUri || x.naam) === key))
+                        alleHard.push({ ...obj, bronFunctie: f.titel });
                     });
                     (f.softSkills || []).forEach(s => {
                       const obj = typeof s === "object" ? s : { naam: s };
-                      alleSoft.push({ ...obj, bronFunctie: f.titel });
+                      const key = obj.escoUri || obj.naam;
+                      if (!alleSoft.find(x => (x.escoUri || x.naam) === key))
+                        alleSoft.push({ ...obj, bronFunctie: f.titel });
                     });
                   });
-                  const niveauLabels = ["", "Beginner", "Basis", "Gemiddeld", "Gevorderd", "Expert"];
-                  const niveauKleuren = ["", "#e74c3c", "#e67e22", "#f1c40f", "#27ae60", "#2980b9"];
+
+                  // Sorteer op niveau hoog→laag, pak top 10
+                  const sorteer = arr => [...arr].sort((a, b) => (b.niveau || 3) - (a.niveau || 3)).slice(0, 10);
+                  const topHard = sorteer(alleHard);
+                  const topSoft = sorteer(alleSoft);
 
                   const SkillRij = ({ s }) => {
                     const niveau = s.niveau ?? 3;
@@ -845,34 +900,58 @@ export default function App() {
                   };
 
                   return (
-                    <div>
-                      <div style={{ background: "#1a1a2e", borderRadius: 16, padding: "20px 24px", marginBottom: 24 }}>
-                        <div style={{ fontFamily: "Georgia,serif", fontSize: 18, fontWeight: 600, color: "#e8c547", marginBottom: 6 }}>📊 Jouw Skillsprofiel</div>
-                        <p style={{ fontSize: 13, color: "#aaa", margin: 0, lineHeight: 1.6 }}>
-                          Alle skills uit jouw gekozen functies, gekoppeld aan de ESCO-database. Gebruik de sliders om je eigen niveau te valideren. Klik op een URI om te kopiëren.
-                        </p>
-                      </div>
+                    <div style={{ maxWidth: 800 }}>
 
-                      {alleHard.length > 0 && (
-                        <div style={{ marginBottom: 28 }}>
-                          <div style={{ fontSize: 11, fontWeight: 600, color: "#aaa", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 14 }}>⚙️ Hard Skills — Vakinhoudelijk ({alleHard.length})</div>
-                          {alleHard.map((s, i) => <SkillRij key={i} s={s} />)}
+                      {/* Verhaal */}
+                      {(cvData.verhaal?.alinea1 || cvData.verhaal?.alinea2) && (
+                        <div style={{ background: "#1a1a2e", borderRadius: 16, padding: "24px 28px", marginBottom: 24 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                            <div style={{ fontFamily: "Georgia,serif", fontSize: 18, fontWeight: 600, color: "#e8c547" }}>✍️ Jouw verhaal</div>
+                            <button onClick={copyStory} style={{ padding: "8px 16px", borderRadius: 8, background: copied ? "#166534" : "rgba(255,255,255,0.1)", color: copied ? "#fff" : "#ccc", border: "1px solid rgba(255,255,255,0.2)", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+                              {copied ? "✓ Gekopieerd!" : "📋 Kopieer"}
+                            </button>
+                          </div>
+                          {[cvData.verhaal?.alinea1, cvData.verhaal?.alinea2, cvData.verhaal?.alinea3].filter(Boolean).map((p, i, arr) => (
+                            <p key={i} style={{ fontSize: 14, color: "#ddd", lineHeight: 1.75, marginBottom: i < arr.length - 1 ? 12 : 0 }}>{p}</p>
+                          ))}
                         </div>
                       )}
 
-                      {alleSoft.length > 0 && (
-                        <div style={{ marginBottom: 28 }}>
-                          <div style={{ fontSize: 11, fontWeight: 600, color: "#aaa", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 14 }}>🤝 Soft Skills — Gedrag & houding ({alleSoft.length})</div>
-                          {alleSoft.map((s, i) => <SkillRij key={i} s={s} />)}
+                      {/* Top 5 */}
+                      {(cvData.top5?.length > 0) && (
+                        <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e8e7e0", padding: "20px 24px", marginBottom: 24 }}>
+                          <SectionTitle>⭐ Top 5 onderscheidende skills</SectionTitle>
+                          {cvData.top5.map((item, i) => (
+                            <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 12 }}>
+                              <div style={{ width: 26, height: 26, borderRadius: 7, background: "#1a1a2e", color: "#e8c547", fontWeight: 700, fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{i + 1}</div>
+                              <div style={{ fontSize: 14, color: "#333", lineHeight: 1.6 }}><span style={{ fontWeight: 600, color: "#1a1a2e" }}>{item.skill}</span> — {item.toelichting}</div>
+                            </div>
+                          ))}
                         </div>
                       )}
 
-                      {/* URI export overzicht */}
-                      <div style={{ background: "#f5f4f0", borderRadius: 14, padding: "18px 22px" }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: "#444", marginBottom: 12 }}>📋 URI-overzicht voor SkillsPortaal export</div>
+                      {/* Top 10 Hard Skills */}
+                      {topHard.length > 0 && (
+                        <div style={{ marginBottom: 24 }}>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: "#aaa", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 12 }}>⚙️ Top 10 Hard Skills — Vakinhoudelijk</div>
+                          {topHard.map((s, i) => <SkillRij key={i} s={s} />)}
+                        </div>
+                      )}
+
+                      {/* Top 10 Soft Skills */}
+                      {topSoft.length > 0 && (
+                        <div style={{ marginBottom: 24 }}>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: "#aaa", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 12 }}>🤝 Top 10 Soft Skills — Gedrag & houding</div>
+                          {topSoft.map((s, i) => <SkillRij key={i} s={s} />)}
+                        </div>
+                      )}
+
+                      {/* URI export */}
+                      <div style={{ background: "#f5f4f0", borderRadius: 14, padding: "16px 20px" }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "#444", marginBottom: 10 }}>📋 URI-overzicht voor SkillsPortaal</div>
                         <div style={{ fontFamily: "monospace", fontSize: 11, color: "#555", lineHeight: 2 }}>
-                          {[...alleHard, ...alleSoft].filter(s => s.escoUri).map((s, i) => (
-                            <div key={i}><span style={{ color: "#1a1a2e", fontWeight: 600 }}>{s.naam}</span> → <span style={{ color: "#2980b9" }}>{s.escoUri}</span></div>
+                          {[...topHard, ...topSoft].filter(s => s.escoUri).map((s, i) => (
+                            <div key={i}><span style={{ fontWeight: 600, color: "#1a1a2e" }}>{s.naam}</span> → <span style={{ color: "#2980b9" }}>{s.escoUri}</span></div>
                           ))}
                         </div>
                       </div>
@@ -880,31 +959,6 @@ export default function App() {
                   );
                 })()}
 
-                {/* Verhaal & Top 5 */}
-                {activeResultTab === "verhaal" && (
-                  <div style={{ maxWidth: 660 }}>
-                    {(cvData.top5?.length > 0) && (
-                      <div style={{ background: "#1a1a2e", borderRadius: 16, padding: 26, marginBottom: 22 }}>
-                        <div style={{ fontFamily: "Georgia,serif", fontSize: 18, fontWeight: 600, color: "#e8c547", marginBottom: 18 }}>⭐ Top 5 onderscheidende skills</div>
-                        {cvData.top5.map((item, i) => (
-                          <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 14 }}>
-                            <div style={{ width: 28, height: 28, borderRadius: 7, background: "rgba(232,197,71,0.2)", color: "#e8c547", fontWeight: 600, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{i + 1}</div>
-                            <div style={{ fontSize: 14, color: "#ddd", lineHeight: 1.6 }}><span style={{ fontWeight: 600, color: "#fff" }}>{item.skill}</span> — {item.toelichting}</div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
-                      <div style={{ fontFamily: "Georgia,serif", fontSize: 21, fontWeight: 600, color: "#1a1a2e" }}>✍️ Jouw verhaal</div>
-                      <button onClick={copyStory} style={{ padding: "9px 18px", borderRadius: 10, background: copied ? "#166534" : "#1a1a2e", color: "#fff", border: "none", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>{copied ? "✓ Gekopieerd!" : "📋 Kopieer verhaal"}</button>
-                    </div>
-                    <Card>
-                      {[cvData.verhaal?.alinea1, cvData.verhaal?.alinea2, cvData.verhaal?.alinea3].filter(Boolean).map((p, i, arr) => (
-                        <p key={i} style={{ fontSize: 15, color: "#333", lineHeight: 1.85, marginBottom: i < arr.length - 1 ? 18 : 0 }}>{p}</p>
-                      ))}
-                    </Card>
-                  </div>
-                )}
               </div>
             </div>
           )}
@@ -1241,7 +1295,7 @@ Retourneer ALLEEN een JSON-object (geen uitleg, geen markdown backticks) met EXA
       ]
     }
   ],
-  "verhaal": {"alinea1": "", "alinea2": "", "alinea3": ""},
+  "verhaal": {"alinea1": "Max 2 zinnen: wie ben je en wat is je kracht.", "alinea2": "Max 2 zinnen: wat breng je mee aan bewezen resultaten.", "alinea3": "Max 2 zinnen: wat drijft je en wat zoek je."},
   "top5": [{"skill": "", "toelichting": ""}]
 }
 
