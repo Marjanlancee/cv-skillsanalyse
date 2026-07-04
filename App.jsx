@@ -135,8 +135,8 @@ export default function App() {
     if (escoDb) return escoDb;
     try {
       const [hardRes, softRes] = await Promise.all([
-        fetch("https://raw.githubusercontent.com/Marjanlancee/functieprofiel-decompositor/refs/heads/main/esco_hardskills.json"),
-        fetch("https://raw.githubusercontent.com/Marjanlancee/functieprofiel-decompositor/refs/heads/main/esco_softskills.json")
+        fetch("/esco_hardskills.json"),
+        fetch("/esco_softskills.json")
       ]);
       const [hard, soft] = await Promise.all([hardRes.json(), softRes.json()]);
       const lookup = {};
