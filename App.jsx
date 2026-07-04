@@ -84,7 +84,7 @@ const RESULT_TABS = [
   { id: "wksw", label: "🧠 Weten · Kunnen · Zijn · Willen" },
   { id: "opleiding", label: "🎓 Opleiding & Hobby's" },
   { id: "verhaal", label: "✨ Verhaal & Top 5" },
-  { id: "esco", label: "🔗 ESCO Skills" },
+  { id: "esco", label: "📊 Jouw Skillsprofiel" },
 ];
 
 // ─── Skills model — originele afbeelding ──────────────────────────────────────
@@ -153,10 +153,34 @@ export default function App() {
   }
 
   function escoVerrijk(skills, db) {
+    // Bouw ook een naam-index voor fallback matching
+    const naamIndex = {};
+    Object.entries(db).forEach(([code, e]) => {
+      const key = e.label.toLowerCase().trim();
+      if (!naamIndex[key]) naamIndex[key] = { ...e, code };
+    });
+
     return (skills || []).map(s => {
-      if (!s.escoCode || !db[s.escoCode]) return s;
-      const e = db[s.escoCode];
-      return { ...s, escoLabel: e.label, escoUri: e.uri, definitie: e.definitie };
+      // Probeer eerst op code
+      if (s.escoCode && db[s.escoCode]) {
+        const e = db[s.escoCode];
+        return { ...s, escoLabel: e.label, escoUri: e.uri, definitie: e.definitie };
+      }
+      // Fallback: zoek op naam (exact match)
+      const naamKey = (s.naam || "").toLowerCase().trim();
+      if (naamIndex[naamKey]) {
+        const e = naamIndex[naamKey];
+        return { ...s, escoLabel: e.label, escoUri: e.uri, definitie: e.definitie };
+      }
+      // Fallback: zoek op gedeeltelijke naam
+      const partialMatch = Object.entries(naamIndex).find(([k]) =>
+        k.includes(naamKey) || naamKey.includes(k)
+      );
+      if (partialMatch) {
+        const e = partialMatch[1];
+        return { ...s, escoLabel: e.label, escoUri: e.uri, definitie: e.definitie };
+      }
+      return s;
     });
   }
 
@@ -698,6 +722,110 @@ export default function App() {
                     })}
                   </div>
                 )}
+
+                {/* Jouw Skillsprofiel */}
+                {activeResultTab === "esco" && (() => {
+                  // Verzamel alle skills uit alle functies
+                  const alleHard = [];
+                  const alleSoft = [];
+                  (cvData.functies || []).forEach(f => {
+                    (f.hardSkills || []).forEach(s => {
+                      const obj = typeof s === "object" ? s : { naam: s };
+                      alleHard.push({ ...obj, bronFunctie: f.titel });
+                    });
+                    (f.softSkills || []).forEach(s => {
+                      const obj = typeof s === "object" ? s : { naam: s };
+                      alleSoft.push({ ...obj, bronFunctie: f.titel });
+                    });
+                  });
+                  const niveauLabels = ["", "Beginner", "Basis", "Gemiddeld", "Gevorderd", "Expert"];
+                  const niveauKleuren = ["", "#e74c3c", "#e67e22", "#f1c40f", "#27ae60", "#2980b9"];
+
+                  const SkillRij = ({ s, idx, type }) => {
+                    const sliderKey = `profiel-${type}-${idx}`;
+                    const niveau = skillNiveaus[sliderKey] ?? s.niveau ?? 3;
+                    return (
+                      <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e8e7e0", padding: "14px 18px", marginBottom: 10 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: 14, color: "#1a1a2e" }}>{s.naam}</div>
+                            {s.bronFunctie && <div style={{ fontSize: 11, color: "#888", marginTop: 2 }}>📌 {s.bronFunctie}</div>}
+                          </div>
+                          <span style={{ fontSize: 12, padding: "3px 10px", borderRadius: 20, background: niveauKleuren[niveau] + "22", color: niveauKleuren[niveau], fontWeight: 600, border: `1px solid ${niveauKleuren[niveau]}44`, whiteSpace: "nowrap" }}>
+                            {niveau}. {niveauLabels[niveau]}
+                          </span>
+                        </div>
+                        <input type="range" min="1" max="5" value={niveau}
+                          onChange={e => setSkillNiveaus(prev => ({ ...prev, [sliderKey]: parseInt(e.target.value) }))}
+                          style={{ width: "100%", accentColor: niveauKleuren[niveau], cursor: "pointer", marginBottom: 4 }} />
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#bbb", marginBottom: s.definitie || s.escoUri ? 10 : 0 }}>
+                          <span>Beginner</span><span>Basis</span><span>Gemiddeld</span><span>Gevorderd</span><span>Expert</span>
+                        </div>
+                        {s.definitie && <div style={{ fontSize: 13, color: "#555", fontStyle: "italic", lineHeight: 1.6, marginBottom: s.escoUri ? 8 : 0 }}>{s.definitie}</div>}
+                        {(s.escoLabel || s.escoUri) && (
+                          <div style={{ background: "#f0f4ff", borderRadius: 8, border: "1px solid #c7d2fe", padding: "8px 12px" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: s.escoUri ? 6 : 0 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <span style={{ fontSize: 10, fontWeight: 700, color: "#6366f1", background: "#e0e7ff", padding: "2px 6px", borderRadius: 4 }}>ESCO</span>
+                                <span style={{ fontSize: 12, fontWeight: 600, color: "#3730a3" }}>{s.escoLabel}</span>
+                              </div>
+                              {s.escoUri && (
+                                <a href={s.escoUri} target="_blank" rel="noreferrer"
+                                  style={{ fontSize: 11, color: "#2980b9", textDecoration: "none", padding: "2px 8px", borderRadius: 4, border: "1px solid #bee3f8", background: "#ebf8ff", whiteSpace: "nowrap" }}>
+                                  ↗ ESCO
+                                </a>
+                              )}
+                            </div>
+                            {s.escoUri && (
+                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                <span style={{ fontSize: 10, fontFamily: "monospace", color: "#6366f1" }}>URI:</span>
+                                <span onClick={() => navigator.clipboard.writeText(s.escoUri)} title="Klik om te kopiëren"
+                                  style={{ fontSize: 10, fontFamily: "monospace", color: "#4338ca", background: "#e0e7ff", padding: "2px 8px", borderRadius: 4, cursor: "pointer", wordBreak: "break-all" }}>
+                                  {s.escoUri}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  };
+
+                  return (
+                    <div>
+                      <div style={{ background: "#1a1a2e", borderRadius: 16, padding: "20px 24px", marginBottom: 24 }}>
+                        <div style={{ fontFamily: "Georgia,serif", fontSize: 18, fontWeight: 600, color: "#e8c547", marginBottom: 6 }}>📊 Jouw Skillsprofiel</div>
+                        <p style={{ fontSize: 13, color: "#aaa", margin: 0, lineHeight: 1.6 }}>
+                          Alle skills uit jouw gekozen functies, gekoppeld aan de ESCO-database. Gebruik de sliders om je eigen niveau te valideren. Klik op een URI om te kopiëren.
+                        </p>
+                      </div>
+
+                      {alleHard.length > 0 && (
+                        <div style={{ marginBottom: 28 }}>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: "#aaa", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 14 }}>⚙️ Hard Skills — Vakinhoudelijk ({alleHard.length})</div>
+                          {alleHard.map((s, i) => <SkillRij key={i} s={s} idx={i} type="hard" />)}
+                        </div>
+                      )}
+
+                      {alleSoft.length > 0 && (
+                        <div style={{ marginBottom: 28 }}>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: "#aaa", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 14 }}>🤝 Soft Skills — Gedrag & houding ({alleSoft.length})</div>
+                          {alleSoft.map((s, i) => <SkillRij key={i} s={s} idx={i} type="soft" />)}
+                        </div>
+                      )}
+
+                      {/* URI export overzicht */}
+                      <div style={{ background: "#f5f4f0", borderRadius: 14, padding: "18px 22px" }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "#444", marginBottom: 12 }}>📋 URI-overzicht voor SkillsPortaal export</div>
+                        <div style={{ fontFamily: "monospace", fontSize: 11, color: "#555", lineHeight: 2 }}>
+                          {[...alleHard, ...alleSoft].filter(s => s.escoUri).map((s, i) => (
+                            <div key={i}><span style={{ color: "#1a1a2e", fontWeight: 600 }}>{s.naam}</span> → <span style={{ color: "#2980b9" }}>{s.escoUri}</span></div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Verhaal & Top 5 */}
                 {activeResultTab === "verhaal" && (
