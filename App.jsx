@@ -561,7 +561,6 @@ export default function App() {
                 {/* Opleiding */}
                 {activeResultTab === "opleiding" && (
                   <div>
-                    {/* Opleidingen */}
                     <Card style={{ marginBottom: 20 }}>
                       <SectionTitle>🎓 Opleidingen & cursussen</SectionTitle>
                       {!(cvData.opleidingen?.length) && <p style={{ fontSize: 13, color: "#888" }}>Geen opleidingsgegevens gevonden.</p>}
@@ -573,170 +572,75 @@ export default function App() {
                       ))}
                     </Card>
 
-                    {/* Hobby's met ESCO skills en sliders */}
-                    <div>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: "#aaa", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 14 }}>🎨 Hobby's & nevenactiviteiten</div>
-                      {!(cvData.hobbies?.length) && <p style={{ fontSize: 13, color: "#888" }}>Geen hobby's gevonden in het CV.</p>}
-                      {(cvData.hobbies || []).map((h, hi) => {
-                        // Support both old string format and new object format
-                        const hobbyObj = typeof h === "object" ? h : { naam: h, skills: [] };
-                        const niveauLabels = ["", "Beginner", "Basis", "Gemiddeld", "Gevorderd", "Expert"];
-                        const niveauKleuren = ["", "#e74c3c", "#e67e22", "#f1c40f", "#27ae60", "#2980b9"];
-                        return (
-                          <div key={hi} style={{ background: "#fff", borderRadius: 16, border: "1px solid #e8e7e0", marginBottom: 16, overflow: "hidden" }}>
-                            <div style={{ background: "#f5f4f0", padding: "12px 20px", borderBottom: "1px solid #e8e7e0" }}>
-                              <div style={{ fontFamily: "Georgia,serif", fontSize: 16, fontWeight: 600, color: "#1a1a2e" }}>{hobbyObj.naam}</div>
-                            </div>
-                            {(hobbyObj.skills || []).length > 0 && (
-                              <div style={{ padding: "14px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
-                                {hobbyObj.skills.map((s, si) => {
-                                  const sliderKey = `hobby-${hi}-${si}`;
-                                  const huidigNiveau = skillNiveaus[sliderKey] ?? s.niveau ?? 2;
-                                  const uriShort = s.escoUri?.split("/").pop()?.substring(0, 8);
-                                  return (
-                                    <div key={si} style={{ background: "#fafaf8", borderRadius: 12, border: "1px solid #e8e7e0", padding: "14px 16px" }}>
-                                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                                        <div style={{ fontWeight: 600, fontSize: 14, color: "#1a1a2e" }}>{s.naam}</div>
-                                        <span style={{ fontSize: 12, padding: "3px 10px", borderRadius: 20, background: niveauKleuren[huidigNiveau] + "22", color: niveauKleuren[huidigNiveau], fontWeight: 600, border: `1px solid ${niveauKleuren[huidigNiveau]}44`, whiteSpace: "nowrap" }}>
-                                          {huidigNiveau}. {niveauLabels[huidigNiveau]}
-                                        </span>
-                                      </div>
-                                      <div style={{ marginBottom: 12 }}>
-                                        <input type="range" min="1" max="5" value={huidigNiveau}
-                                          onChange={e => setSkillNiveaus(prev => ({ ...prev, [sliderKey]: parseInt(e.target.value) }))}
-                                          style={{ width: "100%", accentColor: niveauKleuren[huidigNiveau], cursor: "pointer" }} />
-                                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#bbb", marginTop: 2 }}>
-                                          <span>Beginner</span><span>Basis</span><span>Gemiddeld</span><span>Gevorderd</span><span>Expert</span>
-                                        </div>
-                                      </div>
-                                      {s.definitie && (
-                                            <div style={{ fontSize: 13, color: "#555", lineHeight: 1.6, marginBottom: 10, fontStyle: "italic" }}>
-                                              {s.definitie}
-                                            </div>
-                                          )}
-                                          {(s.escoLabel || s.escoUri) && (
-                                            <div style={{ background: "#f0f4ff", borderRadius: 8, border: "1px solid #c7d2fe", padding: "8px 12px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                                <span style={{ fontSize: 10, fontWeight: 700, color: "#6366f1", background: "#e0e7ff", padding: "2px 6px", borderRadius: 4 }}>ESCO</span>
-                                                <span style={{ fontSize: 12, fontWeight: 600, color: "#3730a3" }}>{s.escoLabel}</span>
-                                              </div>
-                                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                                {s.escoUri && (
-                                                  <>
-                                                    <span style={{ fontSize: 10, fontFamily: "monospace", color: "#6366f1", background: "#e0e7ff", padding: "2px 8px", borderRadius: 4 }}>
-                                                      {s.escoUri.split("/").pop()?.substring(0, 8)}…
-                                                    </span>
-                                                    <a href={s.escoUri} target="_blank" rel="noreferrer"
-                                                      style={{ fontSize: 11, color: "#2980b9", textDecoration: "none", padding: "2px 8px", borderRadius: 4, border: "1px solid #bee3f8", background: "#ebf8ff" }}>
-                                                      ↗ ESCO
-                                                    </a>
-                                                  </>
-                                                )}
-                                              </div>
-                                            </div>
-                                          )}
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "#aaa", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 14 }}>🎨 Hobby's & nevenactiviteiten</div>
+                    {!(cvData.hobbies?.length) && <p style={{ fontSize: 13, color: "#888" }}>Geen hobby's gevonden in het CV.</p>}
+                    {(cvData.hobbies || []).map((h, hi) => {
+                      const hobbyObj = typeof h === "object" ? h : { naam: h, skills: [] };
+                      const niveauLabels = ["", "Beginner", "Basis", "Gemiddeld", "Gevorderd", "Expert"];
+                      const niveauKleuren = ["", "#e74c3c", "#e67e22", "#f1c40f", "#27ae60", "#2980b9"];
+                      return (
+                        <div key={hi} style={{ background: "#fff", borderRadius: 16, border: "1px solid #e8e7e0", marginBottom: 16, overflow: "hidden" }}>
+                          <div style={{ background: "#f5f4f0", padding: "12px 20px", borderBottom: "1px solid #e8e7e0" }}>
+                            <div style={{ fontFamily: "Georgia,serif", fontSize: 16, fontWeight: 600, color: "#1a1a2e" }}>{hobbyObj.naam}</div>
+                          </div>
+                          {(hobbyObj.skills || []).length > 0 && (
+                            <div style={{ padding: "14px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
+                              {hobbyObj.skills.map((s, si) => {
+                                const sliderKey = `hobby-${hi}-${si}`;
+                                const huidigNiveau = skillNiveaus[sliderKey] ?? s.niveau ?? 2;
+                                return (
+                                  <div key={si} style={{ background: "#fafaf8", borderRadius: 12, border: "1px solid #e8e7e0", padding: "14px 16px" }}>
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                                      <div style={{ fontWeight: 600, fontSize: 14, color: "#1a1a2e" }}>{s.naam}</div>
+                                      <span style={{ fontSize: 12, padding: "3px 10px", borderRadius: 20, background: niveauKleuren[huidigNiveau] + "22", color: niveauKleuren[huidigNiveau], fontWeight: 600, border: `1px solid ${niveauKleuren[huidigNiveau]}44`, whiteSpace: "nowrap" }}>
+                                        {huidigNiveau}. {niveauLabels[huidigNiveau]}
+                                      </span>
                                     </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-                {activeResultTab === "wksw" && (
-                  <div>
-                    <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", gap: 24, marginBottom: 16, alignItems: "start" }}>
-                      <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e8e7e0", padding: 20 }}>
-                        <SkillsModel />
-                      </div>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                        {[
-                          { key: "weten", label: "Weten", icon: "📚", sub: "Kennis & expertise", col: "#4a9e4e" },
-                          { key: "kunnen", label: "Kunnen", icon: "⚙️", sub: "Vaardigheden", col: "#2a8abf" },
-                          { key: "zijn", label: "Zijn", icon: "🌱", sub: "Persoonskenmerken", col: "#3aada8" },
-                          { key: "willen", label: "Willen", icon: "🔥", sub: "Motivatie & drijfveren", col: "#7b5ea7" },
-                        ].map(({ key, label, icon, sub, col }) => (
-                          <Card key={key}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                              <div style={{ width: 10, height: 10, borderRadius: 3, background: col, flexShrink: 0 }} />
-                              <div style={{ fontFamily: "Georgia,serif", fontSize: 16, fontWeight: 600 }}>{icon} {label}</div>
-                            </div>
-                            <div style={{ fontSize: 12, color: "#888", marginBottom: 12 }}>{sub}</div>
-                            {(cvData[key] || []).map((item, i) => <div key={i} style={{ fontSize: 13, color: "#333", padding: "7px 12px", background: "#fafaf8", borderRadius: 8, border: "1px solid #eeede8", lineHeight: 1.5, marginBottom: 7 }}>{item}</div>)}
-                          </Card>
-                        ))}
-                      </div>
-                    </div>
-                    {cvData.drijfveren && <div style={{ background: "#1a1a2e", borderRadius: 14, padding: "18px 22px", marginBottom: 14 }}><div style={{ fontFamily: "Georgia,serif", fontSize: 15, color: "#e8c547", marginBottom: 8 }}>🎯 Drijfveren</div><p style={{ fontSize: 13, color: "#ccc", lineHeight: 1.7, margin: 0 }}>{cvData.drijfveren}</p></div>}
-                    {cvData.ontwikkeltip && <div style={{ background: "#f0fdf4", borderRadius: 14, padding: "18px 22px", border: "1px solid #bbf7d0" }}><div style={{ fontSize: 14, fontWeight: 600, color: "#166534", marginBottom: 8 }}>💡 Ontwikkeltip</div><p style={{ fontSize: 13, color: "#166534", lineHeight: 1.7, margin: 0 }}>{cvData.ontwikkeltip}</p></div>}
-                  </div>
-                )}
-
-                {/* Opleiding */}
-                {activeResultTab === "opleiding" && (
-                  <div>
-                    {/* Opleidingen */}
-                    <Card style={{ marginBottom: 20 }}>
-                      <SectionTitle>🎓 Opleidingen & cursussen</SectionTitle>
-                      {!(cvData.opleidingen?.length) && <p style={{ fontSize: 13, color: "#888" }}>Geen opleidingsgegevens gevonden.</p>}
-                      {(cvData.opleidingen || []).map((o, i) => (
-                        <div key={i} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: i < cvData.opleidingen.length - 1 ? "1px solid #f0efe8" : "none" }}>
-                          <div style={{ fontSize: 14, fontWeight: 500, color: "#1a1a2e" }}>{o.naam}</div>
-                          <div style={{ fontSize: 12, color: "#888", marginTop: 2 }}>{[o.instelling, o.jaar].filter(Boolean).join(" · ")}</div>
-                        </div>
-                      ))}
-                    </Card>
-
-                    {/* Hobby's met ESCO skills en sliders */}
-                    <div>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: "#aaa", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 14 }}>🎨 Hobby's & nevenactiviteiten</div>
-                      {!(cvData.hobbies?.length) && <p style={{ fontSize: 13, color: "#888" }}>Geen hobby's gevonden in het CV.</p>}
-                      {(cvData.hobbies || []).map((h, hi) => {
-                        // Support both old string format and new object format
-                        const hobbyObj = typeof h === "object" ? h : { naam: h, skills: [] };
-                        const niveauLabels = ["", "Beginner", "Basis", "Gemiddeld", "Gevorderd", "Expert"];
-                        const niveauKleuren = ["", "#e74c3c", "#e67e22", "#f1c40f", "#27ae60", "#2980b9"];
-                        return (
-                          <div key={hi} style={{ background: "#fff", borderRadius: 16, border: "1px solid #e8e7e0", marginBottom: 16, overflow: "hidden" }}>
-                            <div style={{ background: "#f5f4f0", padding: "12px 20px", borderBottom: "1px solid #e8e7e0" }}>
-                              <div style={{ fontFamily: "Georgia,serif", fontSize: 16, fontWeight: 600, color: "#1a1a2e" }}>{hobbyObj.naam}</div>
-                            </div>
-                            {(hobbyObj.skills || []).length > 0 && (
-                              <div style={{ padding: "14px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
-                                {hobbyObj.skills.map((s, si) => {
-                                  const sliderKey = `hobby-${hi}-${si}`;
-                                  const huidigNiveau = skillNiveaus[sliderKey] ?? s.niveau ?? 2;
-                                  const uriShort = s.escoUri?.split("/").pop()?.substring(0, 8);
-                                  return (
-                                    <div key={si} style={{ background: "#fafaf8", borderRadius: 12, border: "1px solid #e8e7e0", padding: "14px 16px" }}>
-                                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                                        <div style={{ fontWeight: 600, fontSize: 14, color: "#1a1a2e" }}>{s.naam}</div>
-                                        <span style={{ fontSize: 12, padding: "3px 10px", borderRadius: 20, background: niveauKleuren[huidigNiveau] + "22", color: niveauKleuren[huidigNiveau], fontWeight: 600, border: `1px solid ${niveauKleuren[huidigNiveau]}44`, whiteSpace: "nowrap" }}>
-                                          {huidigNiveau}. {niveauLabels[huidigNiveau]}
-                                        </span>
+                                    <div style={{ marginBottom: 10 }}>
+                                      <input type="range" min="1" max="5" value={huidigNiveau}
+                                        onChange={e => setSkillNiveaus(prev => ({ ...prev, [sliderKey]: parseInt(e.target.value) }))}
+                                        style={{ width: "100%", accentColor: niveauKleuren[huidigNiveau], cursor: "pointer" }} />
+                                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#bbb", marginTop: 2 }}>
+                                        <span>Beginner</span><span>Basis</span><span>Gemiddeld</span><span>Gevorderd</span><span>Expert</span>
                                       </div>
-                                      <div style={{ marginBottom: 12 }}>
-                                        <input type="range" min="1" max="5" value={huidigNiveau}
-                                          onChange={e => setSkillNiveaus(prev => ({ ...prev, [sliderKey]: parseInt(e.target.value) }))}
-                                          style={{ width: "100%", accentColor: niveauKleuren[huidigNiveau], cursor: "pointer" }} />
-                                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#bbb", marginTop: 2 }}>
-                                          <span>Beginner</span><span>Basis</span><span>Gemiddeld</span><span>Gevorderd</span><span>Expert</span>
+                                    </div>
+                                    {s.definitie && (
+                                      <div style={{ fontSize: 13, color: "#555", lineHeight: 1.6, marginBottom: 10, fontStyle: "italic" }}>
+                                        {s.definitie}
+                                      </div>
+                                    )}
+                                    {(s.escoLabel || s.escoUri) && (
+                                      <div style={{ background: "#f0f4ff", borderRadius: 8, border: "1px solid #c7d2fe", padding: "8px 12px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                          <span style={{ fontSize: 10, fontWeight: 700, color: "#6366f1", background: "#e0e7ff", padding: "2px 6px", borderRadius: 4 }}>ESCO</span>
+                                          <span style={{ fontSize: 12, fontWeight: 600, color: "#3730a3" }}>{s.escoLabel}</span>
+                                        </div>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                          {s.escoUri && (
+                                            <>
+                                              <span style={{ fontSize: 10, fontFamily: "monospace", color: "#6366f1", background: "#e0e7ff", padding: "2px 8px", borderRadius: 4 }}>
+                                                {s.escoUri.split("/").pop()?.substring(0, 8)}…
+                                              </span>
+                                              <a href={s.escoUri} target="_blank" rel="noreferrer"
+                                                style={{ fontSize: 11, color: "#2980b9", textDecoration: "none", padding: "2px 8px", borderRadius: 4, border: "1px solid #bee3f8", background: "#ebf8ff" }}>
+                                                ↗ ESCO
+                                              </a>
+                                            </>
+                                          )}
                                         </div>
                                       </div>
-                                      {                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
+
                 {/* Verhaal & Top 5 */}
                 {activeResultTab === "verhaal" && (
                   <div style={{ maxWidth: 660 }}>
