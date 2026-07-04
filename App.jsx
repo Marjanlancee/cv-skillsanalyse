@@ -146,16 +146,10 @@ export default function App() {
 
   // ── API ───────────────────────────────────────────────────────────────────
   async function callClaude(messages, maxTokens = 1000) {
-    const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true"
-      },
-      body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: maxTokens, messages }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: maxTokens, messages }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
