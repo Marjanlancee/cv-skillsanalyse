@@ -153,33 +153,53 @@ export default function App() {
   }
 
   function escoVerrijk(skills, db) {
-    // Bouw ook een naam-index voor fallback matching
+    // Normaliseer string voor matching
+    const norm = str => (str || "").toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9À-ɏ\s]/g, "")
+      .replace(/\s+/g, " ");
+
+    // Bouw naam-index
     const naamIndex = {};
     Object.entries(db).forEach(([code, e]) => {
-      const key = e.label.toLowerCase().trim();
+      const key = norm(e.label);
       if (!naamIndex[key]) naamIndex[key] = { ...e, code };
     });
 
     return (skills || []).map(s => {
-      // Probeer eerst op code
+      // 1. Match op code
       if (s.escoCode && db[s.escoCode]) {
         const e = db[s.escoCode];
         return { ...s, escoLabel: e.label, escoUri: e.uri, definitie: e.definitie };
       }
-      // Fallback: zoek op naam (exact match)
-      const naamKey = (s.naam || "").toLowerCase().trim();
+
+      const naamKey = norm(s.naam);
+
+      // 2. Exacte naam match
       if (naamIndex[naamKey]) {
         const e = naamIndex[naamKey];
         return { ...s, escoLabel: e.label, escoUri: e.uri, definitie: e.definitie };
       }
-      // Fallback: zoek op gedeeltelijke naam
+
+      // 3. Skill naam bevat ESCO label of andersom
       const partialMatch = Object.entries(naamIndex).find(([k]) =>
-        k.includes(naamKey) || naamKey.includes(k)
+        k.length > 4 && (naamKey.includes(k) || k.includes(naamKey))
       );
       if (partialMatch) {
         const e = partialMatch[1];
         return { ...s, escoLabel: e.label, escoUri: e.uri, definitie: e.definitie };
       }
+
+      // 4. Eerste woord match (bijv "projectmanagement" → "projecten managen")
+      const eersteWoord = naamKey.split(" ")[0];
+      if (eersteWoord.length > 5) {
+        const wordMatch = Object.entries(naamIndex).find(([k]) => k.includes(eersteWoord));
+        if (wordMatch) {
+          const e = wordMatch[1];
+          return { ...s, escoLabel: e.label, escoUri: e.uri, definitie: e.definitie };
+        }
+      }
+
       return s;
     });
   }
@@ -256,21 +276,61 @@ export default function App() {
         { type: "text", text: prompt }
       ]}], 8000);
       const parsed = parseJSON(text);
-      // Verrijk skills met echte ESCO data
-      const db = await laadEscoDb();
-      const verrijkt = {
-        ...parsed,
-        functies: (parsed.functies || []).map(f => ({
-          ...f,
-          hardSkills: escoVerrijk(f.hardSkills, db),
-          softSkills: escoVerrijk(f.softSkills, db),
-        })),
-        hobbies: (parsed.hobbies || []).map(h => {
-          if (typeof h === "string") return h;
-          return { ...h, skills: escoVerrijk(h.skills, db) };
-        }),
-      };
-      setCvData(verrijkt);
+
+      // Verrijk elke functie met echte ESCO-skills via de server
+      const functies = await Promise.all((parsed.functies || []).map(async f => {
+        try {
+          const escoRes = await fetch("/api/claude", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              stap: "esco",
+              functietitel: f.titel,
+              taken: f.taken || []
+            })
+          });
+          const escoData = await escoRes.json();
+          if (escoData.taken) {
+            // Maak platte lijsten van hard en soft skills uit alle taken
+            const hardSkills = [];
+            const softSkills = [];
+            escoData.taken.forEach(taak => {
+              (taak.hardskills || []).forEach(s => {
+                if (!hardSkills.find(x => x.esco_code === s.esco_code)) {
+                  hardSkills.push({
+                    naam: s.esco_label || s.skill,
+                    niveau: s.niveau || 3,
+                    niveauLabel: ["","Beginner","Basis","Gemiddeld","Gevorderd","Expert"][s.niveau || 3],
+                    escoLabel: s.esco_label || s.skill,
+                    escoUri: s.esco_uri || null,
+                    definitie: s.esco_definitie || "",
+                    bronTaak: taak.id
+                  });
+                }
+              });
+              (taak.softskills || []).forEach(s => {
+                if (!softSkills.find(x => x.esco_code === s.esco_code)) {
+                  softSkills.push({
+                    naam: s.esco_label || s.softskill,
+                    niveau: s.niveau || 3,
+                    niveauLabel: ["","Beginner","Basis","Gemiddeld","Gevorderd","Expert"][s.niveau || 3],
+                    escoLabel: s.esco_label || s.softskill,
+                    escoUri: s.esco_uri || null,
+                    definitie: s.esco_definitie || "",
+                    bronTaak: taak.id
+                  });
+                }
+              });
+            });
+            return { ...f, hardSkills, softSkills };
+          }
+        } catch (e) {
+          console.error("ESCO koppeling mislukt voor", f.titel, e);
+        }
+        return f;
+      }));
+
+      setCvData({ ...parsed, functies });
       setCvStage("result");
     } catch (e) { setCvError(e.message); setCvStage("error"); }
   }
@@ -389,7 +449,7 @@ export default function App() {
             <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 48, textAlign: "center", gap: 16 }}>
               <Spinner />
               <div style={{ fontFamily: "Georgia,serif", fontSize: 20, color: "#1a1a2e" }}>Skills worden geanalyseerd…</div>
-              <div style={{ fontSize: 14, color: "#888", maxWidth: 320, lineHeight: 1.6 }}>Skills worden geanalyseerd op basis van jouw gekozen functies.</div>
+              <div style={{ fontSize: 14, color: "#888", maxWidth: 320, lineHeight: 1.6 }}>CV wordt geanalyseerd en skills worden gekoppeld aan de ESCO-database…</div>
             </div>
           )}
 
@@ -741,25 +801,18 @@ export default function App() {
                   const niveauLabels = ["", "Beginner", "Basis", "Gemiddeld", "Gevorderd", "Expert"];
                   const niveauKleuren = ["", "#e74c3c", "#e67e22", "#f1c40f", "#27ae60", "#2980b9"];
 
-                  const SkillRij = ({ s, idx, type }) => {
-                    const sliderKey = `profiel-${type}-${idx}`;
-                    const niveau = skillNiveaus[sliderKey] ?? s.niveau ?? 3;
+                  const SkillRij = ({ s }) => {
+                    const niveau = s.niveau ?? 3;
                     return (
-                      <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e8e7e0", padding: "14px 18px", marginBottom: 10 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                      <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e8e7e0", padding: "12px 16px", marginBottom: 8 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: s.definitie || s.escoUri ? 8 : 0 }}>
                           <div>
                             <div style={{ fontWeight: 600, fontSize: 14, color: "#1a1a2e" }}>{s.naam}</div>
                             {s.bronFunctie && <div style={{ fontSize: 11, color: "#888", marginTop: 2 }}>📌 {s.bronFunctie}</div>}
                           </div>
-                          <span style={{ fontSize: 12, padding: "3px 10px", borderRadius: 20, background: niveauKleuren[niveau] + "22", color: niveauKleuren[niveau], fontWeight: 600, border: `1px solid ${niveauKleuren[niveau]}44`, whiteSpace: "nowrap" }}>
+                          <span style={{ fontSize: 12, padding: "3px 10px", borderRadius: 20, background: niveauKleuren[niveau] + "22", color: niveauKleuren[niveau], fontWeight: 600, border: `1px solid ${niveauKleuren[niveau]}44`, whiteSpace: "nowrap", flexShrink: 0 }}>
                             {niveau}. {niveauLabels[niveau]}
                           </span>
-                        </div>
-                        <input type="range" min="1" max="5" value={niveau}
-                          onChange={e => setSkillNiveaus(prev => ({ ...prev, [sliderKey]: parseInt(e.target.value) }))}
-                          style={{ width: "100%", accentColor: niveauKleuren[niveau], cursor: "pointer", marginBottom: 4 }} />
-                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#bbb", marginBottom: s.definitie || s.escoUri ? 10 : 0 }}>
-                          <span>Beginner</span><span>Basis</span><span>Gemiddeld</span><span>Gevorderd</span><span>Expert</span>
                         </div>
                         {s.definitie && <div style={{ fontSize: 13, color: "#555", fontStyle: "italic", lineHeight: 1.6, marginBottom: s.escoUri ? 8 : 0 }}>{s.definitie}</div>}
                         {(s.escoLabel || s.escoUri) && (
@@ -803,14 +856,14 @@ export default function App() {
                       {alleHard.length > 0 && (
                         <div style={{ marginBottom: 28 }}>
                           <div style={{ fontSize: 11, fontWeight: 600, color: "#aaa", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 14 }}>⚙️ Hard Skills — Vakinhoudelijk ({alleHard.length})</div>
-                          {alleHard.map((s, i) => <SkillRij key={i} s={s} idx={i} type="hard" />)}
+                          {alleHard.map((s, i) => <SkillRij key={i} s={s} />)}
                         </div>
                       )}
 
                       {alleSoft.length > 0 && (
                         <div style={{ marginBottom: 28 }}>
                           <div style={{ fontSize: 11, fontWeight: 600, color: "#aaa", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 14 }}>🤝 Soft Skills — Gedrag & houding ({alleSoft.length})</div>
-                          {alleSoft.map((s, i) => <SkillRij key={i} s={s} idx={i} type="soft" />)}
+                          {alleSoft.map((s, i) => <SkillRij key={i} s={s} />)}
                         </div>
                       )}
 
@@ -1193,9 +1246,194 @@ Retourneer ALLEEN een JSON-object (geen uitleg, geen markdown backticks) met EXA
 }
 
 KRITIEKE REGELS:
-- escoCode is ALTIJD een bestaande 8-karakter code uit de officiële ESCO-database v1.2 Nederlands.
-- Gebruik UITSLUITEND codes die bestaan — verzin geen codes.
-- Voorbeelden van geldige codes: c29aa9d2 (zelfstandig werken), 1f1cdba2 (schema's bedrading), 83e6510b (gedetailleerd werken).
+- escoCode is een 8-karakter code uit de ESCO-database v1.2 Nederlands.
+- BELANGRIJK: gebruik als "naam" het EXACTE Nederlandse ESCO-label zoals het in de database staat.
+- Voorbeelden van exacte ESCO-labels: "zelfstandig werken", "projecten managen", "gedetailleerd werken", "communiceren met klanten", "teamwork", "problemen oplossen", "leiding geven", "plannen en organiseren".
+- Gebruik gewone Nederlandse ESCO-labels, geen Engelse termen.
+- Elke functie krijgt exact 4 taken, 4 hardSkills en 4 softSkills.
+- Hobby's altijd meenemen — geef per hobby 2-3 skills met ESCO-code.
+- Niveau 1=Beginner 2=Basis 3=Gemiddeld 4=Gevorderd 5=Expert.
+- top5 heeft precies 5 items.
+- Verhaal in de ik-vorm, authentiek en krachtig.
+- Ontbrekende info = lege array [].
+- UITSLUITEND het JSON-object retourneren.`;
+}
+function drijfverenPrompt(scores, top3) {
+  const labels = Object.entries(scores).map(([k, v]) => `${DRIJFVEER_TYPES[k].label}: ${v}/5`).join(", ");
+  return `Je bent een loopbaancoach. Schrijf een warm, persoonlijk drijfverenprofiel in het Nederlands.
+
+Scores: ${labels}
+Sterkste drijfveren: ${top3}
+
+Geef je antwoord als JSON (geen backticks):
+{
+  "intro": "Persoonlijke intro over de sterkste drijfveren. Gebruik gewone taal, geen vakjargon. (2-3 zinnen)",
+  "werkvoorkeur": "Wat dit zegt over hoe iemand het beste werkt, wat energie geeft en wat energie kost. (3-4 zinnen)",
+  "beroepen": ["passende werkomgeving of rol 1", "passende werkomgeving of rol 2", "passende werkomgeving of rol 3"],
+  "tip": "Concrete loopbaantip gebaseerd op deze drijfveren. (2 zinnen)"
+}`;
+}
+
+function ontwikkelPrompt(cvSamenvatting, drijfSamenvatting, doel) {
+  return `Je bent een ervaren loopbaancoach. Maak een concreet, persoonlijk ontwikkeladvies.
+
+${cvSamenvatting}
+${drijfSamenvatting}
+
+Ontwikkeldoel: "${doel}"
+
+Retourneer ALLEEN dit JSON-object (geen backticks):
+{
+  "richting": "Aanbevolen ontwikkelrichting (max 8 woorden)",
+  "richtingToelichting": "Hoe verhoudt dit zich tot het eigen doel? (2-3 zinnen)",
+  "waaromPassend": "Waarom past dit bij dit profiel? Concreet en persoonlijk. (3-4 zinnen)",
+  "leerstappen": [
+    {"titel":"","omschrijving":"Wat doe je precies en wat levert het op?","tijdsindicatie":"bijv. 1-2 maanden"},
+    {"titel":"","omschrijving":"","tijdsindicatie":""},
+    {"titel":"","omschrijving":"","tijdsindicatie":""},
+    {"titel":"","omschrijving":"","tijdsindicatie":""}
+  ],
+  "eersteActie": "Één concrete actie die deze week gedaan kan worden. Specifiek en motiverend.",
+  "aandachtspunt": "Één valkuil of aandachtspunt. Positief geformuleerd."
+}`;
+}return `Je bent een expert loopbaancoach en CV-analist met diepgaande kennis van de ESCO-database v1.2 (Nederlands).
+
+Analyseer het meegestuurde CV, maar focus ALLEEN op de volgende functies:
+${functiesStr}
+
+BELANGRIJK — wat zijn skills?
+Skills zijn concrete, actie-georiënteerde vaardigheden die iemand kan uitvoeren.
+- ✓ GOED: "projecten plannen en bewaken", "teams coachen", "arbeidsmarkt analyseren", "stakeholders beheren"
+- ✗ FOUT: "projectmanagement" (= vakgebied), "employer branding" (= concept), "HR-management" (= functieomschrijving)
+- Gebruik altijd de exacte Nederlandse ESCO-labelnamen zoals ze in de database staan.
+- Voorbeelden van echte ESCO-labels: "zelfstandig werken", "teamwork", "problemen oplossen", "leiding geven aan mensen", "plannen en organiseren", "communiceren met klanten", "werving en selectie uitvoeren", "budgetten beheren", "arbeidsmarkttrends analyseren"
+
+Retourneer ALLEEN een JSON-object (geen uitleg, geen markdown backticks) met EXACT deze structuur:
+
+{
+  "functies": [
+    {
+      "titel": "",
+      "bedrijf": "",
+      "periode": "",
+      "taken": ["", "", "", ""],
+      "hardSkills": [
+        {
+          "naam": "Exacte ESCO-skill naam (actiegericht werkwoord)",
+          "niveau": 3,
+          "niveauLabel": "Gemiddeld",
+          "escoCode": "8-karakter code indien bekend"
+        }
+      ],
+      "softSkills": [
+        {
+          "naam": "Exacte ESCO-skill naam",
+          "niveau": 3,
+          "niveauLabel": "Gemiddeld",
+          "escoCode": "8-karakter code indien bekend"
+        }
+      ]
+    }
+  ],
+  "weten": ["", "", "", ""],
+  "kunnen": ["", "", "", ""],
+  "zijn": ["", "", "", ""],
+  "willen": ["", "", "", ""],
+  "drijfveren": "",
+  "ontwikkeltip": "",
+  "opleidingen": [{"naam": "", "instelling": "", "jaar": ""}],
+  "hobbies": [
+    {
+      "naam": "Hobby of nevenactiviteit",
+      "skills": [
+        {
+          "naam": "Exacte ESCO-skill naam",
+          "niveau": 2,
+          "niveauLabel": "Basis",
+          "escoCode": "8-karakter code indien bekend"
+        }
+      ]
+    }
+  ],
+  "verhaal": {"alinea1": "", "alinea2": "", "alinea3": ""},
+  "top5": [{"skill": "", "toelichting": ""}]
+}
+
+Regels:
+- Elke functie krijgt exact 4 taken, 4 hardSkills en 4 softSkills.
+- Skills zijn ALTIJD actiegericht en concreet — gebruik exacte ESCO-labelnamen.
+- Hard skills = vakinhoudelijke vaardigheden (wat je doet).
+- Soft skills = gedrag en houding (hoe je het doet).
+- Hobby's altijd meenemen — geef per hobby 2-3 skills.
+- Niveau 1=Beginner 2=Basis 3=Gemiddeld 4=Gevorderd 5=Expert.
+- top5 heeft precies 5 items met actie-georiënteerde ESCO-skill namen.
+- Verhaal in de ik-vorm, max 2 zinnen per alinea, authentiek en krachtig.
+- Ontbrekende info = lege array [].
+- UITSLUITEND het JSON-object retourneren.`;
+
+// Stap B: volledige skills-extractie van specifieke functies
+function CV_SKILLS_PROMPT(functiesStr) {
+  return `Je bent een expert loopbaancoach en CV-analist met diepgaande kennis van de ESCO-database v1.2 (Nederlands).
+
+Analyseer het meegestuurde CV, maar focus ALLEEN op de volgende functies:
+${functiesStr}
+
+Retourneer ALLEEN een JSON-object (geen uitleg, geen markdown backticks) met EXACT deze structuur:
+
+{
+  "functies": [
+    {
+      "titel": "",
+      "bedrijf": "",
+      "periode": "",
+      "taken": ["", "", "", ""],
+      "hardSkills": [
+        {
+          "naam": "Skill naam (begrijpelijk Nederlands)",
+          "niveau": 3,
+          "niveauLabel": "Gemiddeld",
+          "escoCode": "8-karakter ESCO-code bijv. a1b2c3d4"
+        }
+      ],
+      "softSkills": [
+        {
+          "naam": "Skill naam",
+          "niveau": 3,
+          "niveauLabel": "Gemiddeld",
+          "escoCode": "8-karakter ESCO-code bijv. c29aa9d2"
+        }
+      ]
+    }
+  ],
+  "weten": ["", "", "", ""],
+  "kunnen": ["", "", "", ""],
+  "zijn": ["", "", "", ""],
+  "willen": ["", "", "", ""],
+  "drijfveren": "",
+  "ontwikkeltip": "",
+  "opleidingen": [{"naam": "", "instelling": "", "jaar": ""}],
+  "hobbies": [
+    {
+      "naam": "Hobby of nevenactiviteit",
+      "skills": [
+        {
+          "naam": "Skill naam",
+          "niveau": 2,
+          "niveauLabel": "Basis",
+          "escoCode": "8-karakter ESCO-code"
+        }
+      ]
+    }
+  ],
+  "verhaal": {"alinea1": "", "alinea2": "", "alinea3": ""},
+  "top5": [{"skill": "", "toelichting": ""}]
+}
+
+KRITIEKE REGELS:
+- escoCode is een 8-karakter code uit de ESCO-database v1.2 Nederlands.
+- BELANGRIJK: gebruik als "naam" het EXACTE Nederlandse ESCO-label zoals het in de database staat.
+- Voorbeelden van exacte ESCO-labels: "zelfstandig werken", "projecten managen", "gedetailleerd werken", "communiceren met klanten", "teamwork", "problemen oplossen", "leiding geven", "plannen en organiseren".
+- Gebruik gewone Nederlandse ESCO-labels, geen Engelse termen.
 - Elke functie krijgt exact 4 taken, 4 hardSkills en 4 softSkills.
 - Hobby's altijd meenemen — geef per hobby 2-3 skills met ESCO-code.
 - Niveau 1=Beginner 2=Basis 3=Gemiddeld 4=Gevorderd 5=Expert.
