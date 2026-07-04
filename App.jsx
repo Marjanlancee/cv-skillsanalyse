@@ -197,7 +197,7 @@ export default function App() {
       const text = await callClaude([{ role: "user", content: [
         { type: "document", source: { type: "base64", media_type: "application/pdf", data: cvBase64Ref.current } },
         { type: "text", text: prompt }
-      ]}], 4000);
+      ]}], 6000);
       setCvData(parseJSON(text));
       setCvStage("result");
     } catch (e) { setCvError(e.message); setCvStage("error"); }
@@ -268,7 +268,7 @@ export default function App() {
         <div style={{ width: 40, height: 40, borderRadius: 10, background: "linear-gradient(135deg,#e8c547,#f0a500)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>📄</div>
         <div>
           <div style={{ fontFamily: "Georgia,serif", fontSize: 19, fontWeight: 700, color: "#fff" }}>CV Skillsanalyse</div>
-          <div style={{ fontSize: 12, color: "#8a8aaa", marginTop: 1 }}>Weten · Kunnen · Zijn · Willen — powered by Claude AI</div>
+          <div style={{ fontSize: 12, color: "#8a8aaa", marginTop: 1 }}>Bright Work Solutions</div>
         </div>
       </div>
 
@@ -320,7 +320,7 @@ export default function App() {
             <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 48, textAlign: "center", gap: 16 }}>
               <Spinner />
               <div style={{ fontFamily: "Georgia,serif", fontSize: 20, color: "#1a1a2e" }}>Skills worden geanalyseerd…</div>
-              <div style={{ fontSize: 14, color: "#888", maxWidth: 320, lineHeight: 1.6 }}>Claude analyseert de door jou gekozen functies en brengt je Weten, Kunnen, Zijn en Willen in kaart.</div>
+              <div style={{ fontSize: 14, color: "#888", maxWidth: 320, lineHeight: 1.6 }}>De AI analyseert de door jou gekozen functies en brengt je Weten, Kunnen, Zijn en Willen in kaart.</div>
             </div>
           )}
 
@@ -690,7 +690,7 @@ export default function App() {
             <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 48, textAlign: "center", gap: 16 }}>
               <Spinner />
               <div style={{ fontFamily: "Georgia,serif", fontSize: 20, color: "#1a1a2e" }}>Jouw drijfveren worden in kaart gebracht…</div>
-              <div style={{ fontSize: 14, color: "#888" }}>Claude analyseert je antwoorden en schrijft een persoonlijk profiel.</div>
+              <div style={{ fontSize: 14, color: "#888" }}>De AI analyseert je antwoorden en schrijft een persoonlijk profiel.</div>
             </div>
           )}
 
@@ -821,7 +821,7 @@ export default function App() {
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 0", gap: 16, textAlign: "center" }}>
                 <Spinner />
                 <div style={{ fontFamily: "Georgia,serif", fontSize: 18, color: "#1a1a2e" }}>Ontwikkeladvies wordt opgesteld…</div>
-                <div style={{ fontSize: 13, color: "#888" }}>Claude combineert jouw doel, CV en drijfveren tot een persoonlijk plan.</div>
+                <div style={{ fontSize: 13, color: "#888" }}>De AI combineert jouw doel, CV en drijfveren tot een persoonlijk plan.</div>
               </div>
             )}
 
