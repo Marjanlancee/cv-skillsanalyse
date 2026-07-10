@@ -181,7 +181,7 @@ export default function App() {
 
   // ── API ───────────────────────────────────────────────────────────────────
   async function callClaude(messages, maxTokens = 1000) {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+    const res = await fetch("/api/claude", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: maxTokens, messages }),
