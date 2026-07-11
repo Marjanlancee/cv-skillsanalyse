@@ -8,28 +8,7 @@ const SUPABASE_URL = "https://stzgxsgocqbuquzavgsu.supabase.co";
 const SUPABASE_KEY = "sb_publishable_JaDLY5jH7poc4oRjx_EoeQ_c2jyT39c";
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-/** Haalt het complete, opgeslagen skillsprofiel van de ingelogde medewerker op. */
-async function haalSkillsprofielOp(authUserId) {
-  const { data: medewerker } = await supabase.from("medewerkers").select("id").eq("auth_user_id", authUserId).maybeSingle();
-  if (!medewerker) return [];
-
-  const { data, error } = await supabase
-    .from("medewerker_skills")
-    .select(`
-      bron,
-      toegevoegd_op,
-      skills (
-        id,
-        bron_label,
-        skill_matches ( esco_anker_code, confidence_score, match_bron )
-      )
-    `)
-    .eq("medewerker_id", medewerker.id)
-    .order("toegevoegd_op", { ascending: false });
-
-  if (error) { console.error("Fout bij ophalen skillsprofiel:", error); return []; }
-  return data || [];
-}
+const NIVEAUS = ["Beginner", "Basis", "Gemiddeld", "Gevorderd", "Expert"];
 
 // ─── Matcht een lijst skill-teksten parallel aan ESCO (sneller dan één voor één). ──
 async function verrijkMetEsco(teksten) {
@@ -52,64 +31,35 @@ async function vindEscoMatch(skillLabel) {
   }
 }
 
-/** Slaat de gevonden CV-skills op in de SkillsPortaal database, gekoppeld aan de ingelogde medewerker.
- * Verwacht cvData waarin hardSkills/softSkills/hobbySkills al "verrijkt" zijn met ESCO-matches
- * (dus vorm: [{tekst, esco}, ...]) — zo hoeft er niet dubbel gematcht te worden. */
-async function slaCvSkillsOp(cvData, authUserId, email) {
+/** Slaat het complete skillsprofiel op: skills per taak (met niveau) + hobbyskills. */
+async function slaCvSkillsOp(functieSkills, hobbySkills, niveaus, authUserId, email) {
   try {
     const medewerkerId = await vindOfMaakMedewerker(authUserId, email);
-    const verrijkeItems = verzamelVerrijkteSkills(cvData);
-    let opgeslagen = 0;
-    let escoGematcht = 0;
+    const alleItems = [];
+    Object.values(functieSkills).forEach(taken => {
+      taken.forEach(t => {
+        (t.hardskills || []).forEach(item => alleItems.push(item));
+        (t.softskills || []).forEach(item => alleItems.push(item));
+      });
+    });
+    (hobbySkills || []).forEach(item => alleItems.push(item));
 
-    for (const { tekst, esco } of verrijkeItems) {
+    // dedupliceren op tekst, zodat dezelfde skill niet dubbel wordt opgeslagen
+    const uniek = new Map();
+    alleItems.forEach(item => { if (!uniek.has(item.tekst)) uniek.set(item.tekst, item); });
+
+    let opgeslagen = 0, escoGematcht = 0;
+    for (const [tekst, item] of uniek) {
       const skillId = await vindOfMaakSkill(tekst);
-      await koppelSkillAanMedewerker(medewerkerId, skillId);
-      if (esco) {
-        await slaEscoMatchOp(skillId, esco);
-        escoGematcht++;
-      }
+      await koppelSkillAanMedewerker(medewerkerId, skillId, niveaus[tekst]);
+      if (item.esco) { await slaEscoMatchOp(skillId, item.esco); escoGematcht++; }
       opgeslagen++;
     }
-
-    // Weten/kunnen/zijn/willen worden ook opgeslagen, maar zonder ESCO-matching
-    // (dit zijn meer persoonlijke kenmerken dan concrete, matchbare vakskills)
-    for (const veld of ["weten", "kunnen", "zijn", "willen"]) {
-      for (const tekst of cvData[veld] || []) {
-        const skillId = await vindOfMaakSkill(tekst);
-        await koppelSkillAanMedewerker(medewerkerId, skillId);
-        opgeslagen++;
-      }
-    }
-
     return { success: true, aantalSkillsOpgeslagen: opgeslagen, aantalEscoGematcht: escoGematcht };
   } catch (error) {
     console.error("Fout bij opslaan CV-skills:", error);
     return { success: false, error: error.message };
   }
-}
-
-/** Verzamelt alle "verrijkte" {tekst, esco} items uit de functies en hobby's. */
-function verzamelVerrijkteSkills(cvData) {
-  const items = [];
-  (cvData.functies || []).forEach(functie => {
-    (functie.hardSkills || []).forEach(item => items.push(item));
-    (functie.softSkills || []).forEach(item => items.push(item));
-  });
-  (cvData.hobbySkills || []).forEach(item => items.push(item));
-  return items;
-}
-
-/** Slaat een gevonden ESCO-match op, gekoppeld aan de originele skill. */
-async function slaEscoMatchOp(skillId, escoMatch) {
-  const { error } = await supabase.from("skill_matches").insert({
-    skill_id: skillId,
-    esco_anker_code: escoMatch.uri,
-    match_type: "gerelateerd",
-    match_bron: "ai_suggestie",
-    confidence_score: escoMatch.confidence,
-  });
-  if (error) console.error("Fout bij opslaan ESCO-match:", error);
 }
 
 async function vindOfMaakMedewerker(authUserId, email) {
@@ -128,9 +78,20 @@ async function vindOfMaakSkill(skillLabel) {
   return nieuwe.id;
 }
 
-async function koppelSkillAanMedewerker(medewerkerId, skillId) {
-  const { error } = await supabase.from("medewerker_skills").insert({ medewerker_id: medewerkerId, skill_id: skillId, bron: "cv_analyse" });
-  if (error) throw error;
+async function koppelSkillAanMedewerker(medewerkerId, skillId, niveau) {
+  const { error } = await supabase.from("medewerker_skills").insert({ medewerker_id: medewerkerId, skill_id: skillId, bron: "cv_analyse", niveau: niveau || null });
+  if (error) console.error("Fout bij koppelen skill:", error);
+}
+
+async function slaEscoMatchOp(skillId, escoMatch) {
+  const { error } = await supabase.from("skill_matches").insert({
+    skill_id: skillId,
+    esco_anker_code: escoMatch.uri,
+    match_type: "gerelateerd",
+    match_bron: "ai_suggestie",
+    confidence_score: escoMatch.confidence,
+  });
+  if (error) console.error("Fout bij opslaan ESCO-match:", error);
 }
 
 // ─── Drijfveren types (plain taal, geen RIASEC letters zichtbaar) ─────────────
@@ -225,28 +186,58 @@ function SectionTitle({ children }) {
   return <div style={{ fontFamily: "Georgia,serif", fontSize: 16, fontWeight: 600, color: "#1a1a2e", marginBottom: 14 }}>{children}</div>;
 }
 
-// ─── Toont een skill-pill met de gekoppelde ESCO-code (indien gevonden) ───────
+// ─── Toont een skill-pill met de gekoppelde ESCO-code, altijd zichtbaar en klikbaar ──
 function EscoSkillPill({ item, bg, col }) {
   const { tekst, esco } = typeof item === "string" ? { tekst: item, esco: null } : item;
-  const escoCode = esco?.uri?.split("/").pop(); // laatste stuk van de URI als korte code
   return (
-    <span
-      title={esco ? `ESCO: ${esco.label}\nURI: ${esco.uri}\nZekerheid: ${Math.round((esco.confidence || 0) * 100)}%` : "Geen ESCO-match gevonden"}
-      style={{ fontSize: 12, padding: "4px 11px", borderRadius: 20, fontWeight: 500, background: bg, color: col, display: "inline-flex", alignItems: "center", gap: 5, cursor: esco ? "help" : "default" }}
-    >
+    <span style={{ fontSize: 12, padding: "4px 11px", borderRadius: 20, fontWeight: 500, background: bg, color: col, display: "inline-flex", alignItems: "center", gap: 6 }}>
       {tekst}
       {esco ? (
-        <span style={{ fontSize: 10, opacity: 0.75, fontFamily: "monospace" }}>🔗 {escoCode?.slice(0, 8)}</span>
+        <a
+          href={esco.uri}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={e => e.stopPropagation()}
+          title={`ESCO-label: ${esco.label}\nZekerheid: ${Math.round((esco.confidence || 0) * 100)}%\nKlik om te controleren in de ESCO-database`}
+          style={{ fontSize: 10, fontFamily: "monospace", color: "inherit", opacity: 0.8, textDecoration: "underline", textDecorationStyle: "dotted" }}
+        >
+          🔗 {esco.code}
+        </a>
       ) : (
-        <span style={{ fontSize: 10, opacity: 0.5 }}>⚠️</span>
+        <span style={{ fontSize: 10, opacity: 0.6 }} title="Geen ESCO-match gevonden">⚠️ geen match</span>
       )}
     </span>
   );
 }
 
+// ─── Niveau-kiezer: 1 (Beginner) t/m 5 (Expert) ────────────────────────────────
+function NiveauKiezer({ tekst, waarde, onChange }) {
+  const val = NIVEAUS.indexOf(waarde || "Gemiddeld");
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "#fafaf8", borderRadius: 10, border: "1px solid #eeede8", marginBottom: 6 }}>
+      <div style={{ fontSize: 12, color: "#333", flex: 1, minWidth: 140 }}>{tekst}</div>
+      <div style={{ display: "flex", gap: 4 }}>
+        {NIVEAUS.map((n, i) => (
+          <button
+            key={n}
+            onClick={() => onChange(tekst, n)}
+            title={n}
+            style={{
+              width: 24, height: 24, borderRadius: 6, fontSize: 10, fontWeight: 600, cursor: "pointer",
+              border: i === val ? "2px solid #1a1a2e" : "1px solid #d0cfc8",
+              background: i <= val ? "#e8c547" : "#fff", color: i <= val ? "#1a1a2e" : "#aaa",
+            }}
+          >{i + 1}</button>
+        ))}
+      </div>
+      <div style={{ fontSize: 10, color: "#888", width: 62, textAlign: "right" }}>{waarde || "Gemiddeld"}</div>
+    </div>
+  );
+}
+
 // ─── Login / Registratie scherm ────────────────────────────────────────────
 function LoginScherm({ onIngelogd }) {
-  const [modus, setModus] = useState("inloggen"); // "inloggen" | "registreren"
+  const [modus, setModus] = useState("inloggen");
   const [email, setEmail] = useState("");
   const [wachtwoord, setWachtwoord] = useState("");
   const [bezig, setBezig] = useState(false);
@@ -260,20 +251,14 @@ function LoginScherm({ onIngelogd }) {
       if (modus === "registreren") {
         const { data, error } = await supabase.auth.signUp({ email, password: wachtwoord });
         if (error) throw error;
-        if (data.session) {
-          onIngelogd(data.session);
-        } else {
-          setFoutmelding("Account aangemaakt! Check je e-mail om te bevestigen, en log daarna in.");
-          setModus("inloggen");
-        }
+        if (data.session) onIngelogd(data.session);
+        else { setFoutmelding("Account aangemaakt! Check je e-mail om te bevestigen, en log daarna in."); setModus("inloggen"); }
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password: wachtwoord });
         if (error) throw error;
         onIngelogd(data.session);
       }
-    } catch (err) {
-      setFoutmelding(err.message || "Er ging iets mis.");
-    }
+    } catch (err) { setFoutmelding(err.message || "Er ging iets mis."); }
     setBezig(false);
   }
 
@@ -283,38 +268,21 @@ function LoginScherm({ onIngelogd }) {
         <div style={{ fontFamily: "Georgia,serif", fontSize: 22, fontWeight: 600, color: "#1a1a2e", marginBottom: 6, textAlign: "center" }}>
           {modus === "inloggen" ? "Inloggen" : "Account aanmaken"}
         </div>
-        <p style={{ fontSize: 13, color: "#888", textAlign: "center", marginBottom: 24 }}>
-          Log in om je skillsprofiel te bewaren in SkillsPortaal.
-        </p>
-
+        <p style={{ fontSize: 13, color: "#888", textAlign: "center", marginBottom: 24 }}>Log in om je skillsprofiel te bewaren in SkillsPortaal.</p>
         <form onSubmit={versturen}>
           <label style={{ fontSize: 13, color: "#555", display: "block", marginBottom: 6 }}>E-mailadres</label>
-          <input
-            type="email" required value={email} onChange={e => setEmail(e.target.value)}
-            placeholder="naam@bedrijf.nl"
-            style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #d0cfc8", fontSize: 14, fontFamily: "inherit", boxSizing: "border-box", marginBottom: 16 }}
-          />
+          <input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="naam@bedrijf.nl"
+            style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #d0cfc8", fontSize: 14, fontFamily: "inherit", boxSizing: "border-box", marginBottom: 16 }} />
           <label style={{ fontSize: 13, color: "#555", display: "block", marginBottom: 6 }}>Wachtwoord</label>
-          <input
-            type="password" required value={wachtwoord} onChange={e => setWachtwoord(e.target.value)}
-            placeholder="Minimaal 6 tekens" minLength={6}
-            style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #d0cfc8", fontSize: 14, fontFamily: "inherit", boxSizing: "border-box", marginBottom: 16 }}
-          />
-
-          {foutmelding && (
-            <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "10px 14px", color: "#991b1b", fontSize: 13, marginBottom: 16, lineHeight: 1.5 }}>
-              ⚠️ {foutmelding}
-            </div>
-          )}
-
+          <input type="password" required value={wachtwoord} onChange={e => setWachtwoord(e.target.value)} placeholder="Minimaal 6 tekens" minLength={6}
+            style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #d0cfc8", fontSize: 14, fontFamily: "inherit", boxSizing: "border-box", marginBottom: 16 }} />
+          {foutmelding && <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "10px 14px", color: "#991b1b", fontSize: 13, marginBottom: 16, lineHeight: 1.5 }}>⚠️ {foutmelding}</div>}
           <button type="submit" disabled={bezig} style={{ width: "100%", padding: "12px 0", borderRadius: 10, background: "#1a1a2e", color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: bezig ? "default" : "pointer", fontFamily: "inherit" }}>
             {bezig ? "Bezig…" : modus === "inloggen" ? "Inloggen" : "Account aanmaken"}
           </button>
         </form>
-
         <div style={{ textAlign: "center", marginTop: 18 }}>
-          <button onClick={() => { setModus(modus === "inloggen" ? "registreren" : "inloggen"); setFoutmelding(""); }}
-            style={{ background: "none", border: "none", color: "#2a9d8f", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+          <button onClick={() => { setModus(modus === "inloggen" ? "registreren" : "inloggen"); setFoutmelding(""); }} style={{ background: "none", border: "none", color: "#2a9d8f", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
             {modus === "inloggen" ? "Nog geen account? Registreer hier" : "Al een account? Log hier in"}
           </button>
         </div>
@@ -325,24 +293,19 @@ function LoginScherm({ onIngelogd }) {
 
 // ─── Hoofd App ────────────────────────────────────────────────────────────────
 export default function App() {
-  // Login-status
   const [sessie, setSessie] = useState(null);
   const [sessieAanHetLaden, setSessieAanHetLaden] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSessie(data.session);
-      setSessieAanHetLaden(false);
-    });
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, nieuweSessie) => {
-      setSessie(nieuweSessie);
-    });
+    supabase.auth.getSession().then(({ data }) => { setSessie(data.session); setSessieAanHetLaden(false); });
+    const { data: listener } = supabase.auth.onAuthStateChange((_e, s) => setSessie(s));
     return () => listener.subscription.unsubscribe();
   }, []);
 
   const [mainTab, setMainTab] = useState("cv");
 
-  // CV state
+  // CV flow state
+  // cvStage: upload | analyseren | kiesFuncties | takenGenereren | takenSelecteren | skillsMatchen | result | error
   const [cvStage, setCvStage] = useState("upload");
   const [activeResultTab, setActiveResultTab] = useState("functies");
   const [cvData, setCvData] = useState(null);
@@ -350,8 +313,13 @@ export default function App() {
   const [dragging, setDragging] = useState(false);
   const [copied, setCopied] = useState(false);
   const fileInputRef = useRef();
-  const [saveStatus, setSaveStatus] = useState(null); // null | "opslaan..." | "opgeslagen" | "fout"
+  const [saveStatus, setSaveStatus] = useState(null);
   const [escoMatchCount, setEscoMatchCount] = useState(0);
+
+  const [geselecteerdeFuncties, setGeselecteerdeFuncties] = useState(new Set());
+  const [functieTaken, setFunctieTaken] = useState({});      // { functieIndex: [{id, taak, bron, geselecteerd}] }
+  const [functieSkills, setFunctieSkills] = useState({});    // { functieIndex: [{taak, hardskills:[{tekst,esco}], softskills:[...]}] }
+  const [niveaus, setNiveaus] = useState({});                // { skillTekst: "Gevorderd" }
 
   // Drijfveren state
   const [drijfStap, setDrijfStap] = useState(0);
@@ -372,22 +340,17 @@ export default function App() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: maxTokens, messages }),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error?.message || `API fout: ${res.status}`);
-    }
+    if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error?.message || `API fout: ${res.status}`); }
     const json = await res.json();
     return json.content?.map(b => b.text || "").join("") || "";
   }
 
-  function parseJSON(text) {
-    return JSON.parse(text.replace(/```json|```/g, "").trim());
-  }
+  function parseJSON(text) { return JSON.parse(text.replace(/```json|```/g, "").trim()); }
 
-  // ── CV ────────────────────────────────────────────────────────────────────
+  // ── STAP 1: CV uploaden, lichte extractie (functies + wksw + hobby's + verhaal) ──
   async function handleFile(file) {
     if (!file || file.type !== "application/pdf") { setCvError("Upload een geldig PDF-bestand."); setCvStage("error"); return; }
-    setCvStage("loading");
+    setCvStage("analyseren");
     try {
       const base64 = await new Promise((res, rej) => {
         const r = new FileReader();
@@ -397,31 +360,109 @@ export default function App() {
       });
       const text = await callClaude([{ role: "user", content: [{ type: "document", source: { type: "base64", media_type: "application/pdf", data: base64 } }, { type: "text", text: CV_PROMPT }] }], 4000);
       const parsed = parseJSON(text);
-
-      // ESCO-matching gebeurt nu meteen, PARALLEL (dus sneller dan één voor één),
-      // en het resultaat wordt aan elke skill "vastgeplakt" zodat we het meteen
-      // kunnen tonen én later kunnen opslaan zonder alles opnieuw te hoeven matchen.
-      setCvStage("matching");
-      for (const functie of parsed.functies || []) {
-        functie.hardSkills = await verrijkMetEsco(functie.hardSkills || []);
-        functie.softSkills = await verrijkMetEsco(functie.softSkills || []);
-      }
-      parsed.hobbySkills = await verrijkMetEsco(parsed.hobbySkills || []);
-
       setCvData(parsed);
+      // standaard: alleen de meest recente (eerste) functie voorgeselecteerd
+      setGeselecteerdeFuncties(new Set(parsed.functies?.length ? [0] : []));
+      setCvStage("kiesFuncties");
+    } catch (e) { setCvError(e.message); setCvStage("error"); }
+  }
+
+  function toggleFunctie(idx) {
+    setGeselecteerdeFuncties(prev => {
+      const nieuw = new Set(prev);
+      nieuw.has(idx) ? nieuw.delete(idx) : nieuw.add(idx);
+      return nieuw;
+    });
+  }
+
+  // ── STAP 2: taken genereren voor elke gekozen functie ───────────────────────
+  async function genereerTaken() {
+    setCvStage("takenGenereren");
+    try {
+      const indices = [...geselecteerdeFuncties];
+      const resultaten = await Promise.all(indices.map(idx => {
+        const functie = cvData.functies[idx];
+        return callClaude([{ role: "user", content: takenPrompt(functie) }], 1800).then(parseJSON);
+      }));
+      const nieuweTaken = {};
+      indices.forEach((idx, i) => {
+        nieuweTaken[idx] = (resultaten[i].taken || []).map((t, j) => ({ id: j, taak: t.taak, bron: t.bron || "beroep", geselecteerd: true }));
+      });
+      setFunctieTaken(nieuweTaken);
+      setCvStage("takenSelecteren");
+    } catch (e) { setCvError(e.message); setCvStage("error"); }
+  }
+
+  function toggleTaak(functieIdx, taakId) {
+    setFunctieTaken(prev => ({
+      ...prev,
+      [functieIdx]: prev[functieIdx].map(t => t.id === taakId ? { ...t, geselecteerd: !t.geselecteerd } : t),
+    }));
+  }
+
+  // ── STAP 3: skills + ESCO koppelen aan gekozen taken, dan opslaan ───────────
+  async function koppelSkills() {
+    setCvStage("skillsMatchen");
+    try {
+      const indices = [...geselecteerdeFuncties];
+      const ruweSkills = {};
+      for (const idx of indices) {
+        const functie = cvData.functies[idx];
+        const gekozenTaken = functieTaken[idx].filter(t => t.geselecteerd).map(t => t.taak);
+        if (gekozenTaken.length === 0) { ruweSkills[idx] = []; continue; }
+        const text = await callClaude([{ role: "user", content: skillsPerTaakPrompt(functie.titel, gekozenTaken) }], 2200);
+        const data = parseJSON(text);
+        ruweSkills[idx] = data.taken || [];
+      }
+
+      // alle unieke skill-teksten verzamelen (functies + hobby's) en parallel matchen
+      const alleTeksten = new Set();
+      Object.values(ruweSkills).forEach(taken => taken.forEach(t => {
+        (t.hardskills || []).forEach(s => alleTeksten.add(s));
+        (t.softskills || []).forEach(s => alleTeksten.add(s));
+      }));
+      (cvData.hobbySkills || []).forEach(s => alleTeksten.add(s));
+      const tekstenArr = [...alleTeksten];
+      const matches = await Promise.all(tekstenArr.map(t => vindEscoMatch(t)));
+      const matchMap = {}; tekstenArr.forEach((t, i) => matchMap[t] = matches[i]);
+
+      const verrijkt = {};
+      Object.entries(ruweSkills).forEach(([idx, taken]) => {
+        verrijkt[idx] = taken.map(t => ({
+          taak: t.taak,
+          hardskills: (t.hardskills || []).map(s => ({ tekst: s, esco: matchMap[s] })),
+          softskills: (t.softskills || []).map(s => ({ tekst: s, esco: matchMap[s] })),
+        }));
+      });
+      const hobbyVerrijkt = (cvData.hobbySkills || []).map(s => ({ tekst: s, esco: matchMap[s] }));
+
+      const niveauInit = {};
+      tekstenArr.forEach(t => { niveauInit[t] = "Gemiddeld"; });
+
+      setFunctieSkills(verrijkt);
+      setCvData(prev => ({ ...prev, hobbySkills: hobbyVerrijkt }));
+      setNiveaus(niveauInit);
       setCvStage("result");
 
-      // Automatisch opslaan in SkillsPortaal (hergebruikt de matches van hierboven, dus geen dubbel werk)
       setSaveStatus("opslaan...");
-      const resultaat = await slaCvSkillsOp(parsed, sessie.user.id, sessie.user.email);
+      const resultaat = await slaCvSkillsOp(verrijkt, hobbyVerrijkt, niveauInit, sessie.user.id, sessie.user.email);
       setSaveStatus(resultaat.success ? "opgeslagen" : "fout");
       setEscoMatchCount(resultaat.aantalEscoGematcht || 0);
     } catch (e) { setCvError(e.message); setCvStage("error"); }
   }
 
+  function wijzigNiveau(tekst, niveau) {
+    setNiveaus(prev => ({ ...prev, [tekst]: niveau }));
+  }
+
   function copyStory() {
     const txt = [cvData?.verhaal?.alinea1, cvData?.verhaal?.alinea2, cvData?.verhaal?.alinea3].filter(Boolean).join("\n\n");
     navigator.clipboard.writeText(txt).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2200); });
+  }
+
+  function nieuwCv() {
+    setCvStage("upload"); setCvData(null); setSaveStatus(null);
+    setGeselecteerdeFuncties(new Set()); setFunctieTaken({}); setFunctieSkills({}); setNiveaus({});
   }
 
   // ── Drijfveren ────────────────────────────────────────────────────────────
@@ -430,13 +471,11 @@ export default function App() {
     setAntwoorden(nieuw);
     if (drijfStap < DRIJFVEER_VRAGEN.length) setTimeout(() => setDrijfStap(drijfStap + 1), 280);
   }
-
   function berekenScores(antw) {
     const s = { R: 0, I: 0, A: 0, S: 0, E: 0, C: 0 };
     Object.values(antw).forEach(t => { if (s[t] !== undefined) s[t]++; });
     return s;
   }
-
   async function genereerDrijfverenProfiel(scores) {
     setDrijfLoading(true);
     const gesorteerd = Object.entries(scores).sort((a, b) => b[1] - a[1]);
@@ -444,17 +483,13 @@ export default function App() {
     try {
       const text = await callClaude([{ role: "user", content: drijfverenPrompt(scores, top3) }], 1000);
       setDrijfResultaat({ scores, gesorteerd, interpretatie: parseJSON(text) });
-    } catch {
-      setDrijfResultaat({ scores, gesorteerd, interpretatie: null });
-    }
+    } catch { setDrijfResultaat({ scores, gesorteerd, interpretatie: null }); }
     setDrijfLoading(false);
   }
 
   // ── Ontwikkeladvies ───────────────────────────────────────────────────────
   async function genereerOntwikkelAdvies() {
-    setOntwikkelLoading(true);
-    setOntwikkelAdvies(null);
-    setOntwikkelError("");
+    setOntwikkelLoading(true); setOntwikkelAdvies(null); setOntwikkelError("");
     try {
       const cvSamenvatting = cvData ? `CV-profiel: functies: ${(cvData.functies||[]).map(f=>`${f.titel} bij ${f.bedrijf}`).join(", ")}. Weten: ${(cvData.weten||[]).join(", ")}. Kunnen: ${(cvData.kunnen||[]).join(", ")}. Zijn: ${(cvData.zijn||[]).join(", ")}. Willen: ${(cvData.willen||[]).join(", ")}. Top skills: ${(cvData.top5||[]).map(s=>s.skill).join(", ")}.` : "Geen CV geüpload.";
       const drijfSamenvatting = drijfResultaat ? `Drijfveren profiel: ${Object.entries(drijfResultaat.scores).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k])=>DRIJFVEER_TYPES[k].label).join(", ")}` : "Drijfveren test niet gedaan.";
@@ -468,16 +503,21 @@ export default function App() {
   const alleBeantwoord = Object.keys(antwoorden).length === DRIJFVEER_VRAGEN.length;
   const heeftContext = cvData || drijfResultaat;
 
-  // ── Nog aan het checken of iemand al ingelogd is? Even wachten ────────────
+  // alle unieke skill-teksten voor de zelfbeoordelingslijst
+  const alleUniekeSkills = (() => {
+    const set = new Set();
+    Object.values(functieSkills).forEach(taken => taken.forEach(t => {
+      (t.hardskills || []).forEach(i => set.add(i.tekst));
+      (t.softskills || []).forEach(i => set.add(i.tekst));
+    }));
+    (cvData?.hobbySkills || []).forEach(i => { if (i.tekst) set.add(i.tekst); });
+    return [...set];
+  })();
+
   if (sessieAanHetLaden) {
-    return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f5f4f0" }}>
-        <Spinner />
-      </div>
-    );
+    return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f5f4f0" }}><Spinner /></div>;
   }
 
-  // ── Niet ingelogd? Toon login-scherm ──────────────────────────────────────
   if (!sessie) {
     return (
       <div style={{ fontFamily: "'Segoe UI',sans-serif", minHeight: "100vh", background: "#f5f4f0", display: "flex", flexDirection: "column" }}>
@@ -493,11 +533,9 @@ export default function App() {
     );
   }
 
-  // ── Render (ingelogd) ──────────────────────────────────────────────────────
   return (
     <div style={{ fontFamily: "'Segoe UI',sans-serif", minHeight: "100vh", background: "#f5f4f0", display: "flex", flexDirection: "column" }}>
 
-      {/* Header */}
       <div style={{ background: "#1a1a2e", padding: "18px 32px", display: "flex", alignItems: "center", gap: 14 }}>
         <div style={{ width: 40, height: 40, borderRadius: 10, background: "linear-gradient(135deg,#e8c547,#f0a500)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>📄</div>
         <div>
@@ -510,12 +548,9 @@ export default function App() {
         </div>
       </div>
 
-      {/* Hoofd tabs */}
       <div style={{ background: "#fff", borderBottom: "1px solid #e8e7e0", display: "flex", padding: "0 32px" }}>
         {MAIN_TABS.map(t => (
-          <button key={t.id} onClick={() => setMainTab(t.id)} style={{ padding: "14px 18px", fontSize: 13, fontWeight: 500, color: mainTab === t.id ? "#1a1a2e" : "#888", border: "none", borderBottom: mainTab === t.id ? "2px solid #e8c547" : "2px solid transparent", background: "none", cursor: "pointer", fontFamily: "inherit" }}>
-            {t.label}
-          </button>
+          <button key={t.id} onClick={() => setMainTab(t.id)} style={{ padding: "14px 18px", fontSize: 13, fontWeight: 500, color: mainTab === t.id ? "#1a1a2e" : "#888", border: "none", borderBottom: mainTab === t.id ? "2px solid #e8c547" : "2px solid transparent", background: "none", cursor: "pointer", fontFamily: "inherit" }}>{t.label}</button>
         ))}
       </div>
 
@@ -527,18 +562,15 @@ export default function App() {
             <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "32px 24px", gap: 48, flexWrap: "wrap" }}>
               <div style={{ maxWidth: 260, width: "100%" }}>
                 <SkillsModel />
-                <p style={{ fontSize: 13, color: "#666", textAlign: "center", marginTop: 16, lineHeight: 1.6 }}>
-                  De tool analyseert jouw CV op basis van dit model: wat je <strong>weet</strong>, wat je <strong>kunt</strong>, wie je <strong>bent</strong> en wat je <strong>wil</strong>.
-                </p>
+                <p style={{ fontSize: 13, color: "#666", textAlign: "center", marginTop: 16, lineHeight: 1.6 }}>De tool analyseert jouw CV op basis van dit model: wat je <strong>weet</strong>, wat je <strong>kunt</strong>, wie je <strong>bent</strong> en wat je <strong>wil</strong>.</p>
               </div>
-
               <div style={{ maxWidth: 380, width: "100%" }}>
                 <div onClick={() => fileInputRef.current.click()} onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={e => { e.preventDefault(); setDragging(false); handleFile(e.dataTransfer.files[0]); }}
                   style={{ background: dragging ? "#fffef5" : "#fff", borderRadius: 20, border: `2px dashed ${dragging ? "#e8c547" : "#d0cfc8"}`, padding: "44px 36px", textAlign: "center", cursor: "pointer" }}>
                   <div style={{ fontSize: 48 }}>📋</div>
                   <div style={{ fontFamily: "Georgia,serif", fontSize: 21, color: "#1a1a2e", margin: "14px 0 8px" }}>Upload je CV</div>
                   <div style={{ fontSize: 14, color: "#888", lineHeight: 1.6, marginBottom: 8 }}>Sleep een PDF hierheen of klik om te bladeren.</div>
-                  <div style={{ fontSize: 12, color: "#aaa", lineHeight: 1.5, marginBottom: 20 }}>Je functies, skills en hobby's worden geanalyseerd op het Weten·Kunnen·Zijn·Willen-model en gekoppeld aan jouw SkillsPortaal-profiel.</div>
+                  <div style={{ fontSize: 12, color: "#aaa", lineHeight: 1.5, marginBottom: 20 }}>Daarna kies je zelf welke functies je wilt uitwerken tot een gedetailleerd, ESCO-gekoppeld skillsprofiel.</div>
                   <input type="file" ref={fileInputRef} accept="application/pdf" style={{ display: "none" }} onChange={e => handleFile(e.target.files[0])} />
                   <button style={{ padding: "12px 28px", borderRadius: 10, background: "#1a1a2e", color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>📁 Kies PDF-bestand</button>
                 </div>
@@ -546,85 +578,160 @@ export default function App() {
             </div>
           )}
 
-          {cvStage === "loading" && (
+          {cvStage === "analyseren" && (
             <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 48, textAlign: "center", gap: 16 }}>
               <Spinner />
-              <div style={{ fontFamily: "Georgia,serif", fontSize: 20, color: "#1a1a2e" }}>CV wordt geanalyseerd…</div>
-              <div style={{ fontSize: 14, color: "#888", maxWidth: 320, lineHeight: 1.6 }}>Je werkervaring wordt gelezen en je Weten, Kunnen, Zijn en Willen worden in kaart gebracht.</div>
+              <div style={{ fontFamily: "Georgia,serif", fontSize: 20, color: "#1a1a2e" }}>CV wordt gelezen…</div>
+              <div style={{ fontSize: 14, color: "#888", maxWidth: 320, lineHeight: 1.6 }}>We halen je functies, opleidingen en hobby's eruit — daarna kies je zelf waar we dieper op ingaan.</div>
             </div>
           )}
 
-          {cvStage === "matching" && (
+          {/* ── FUNCTIEKEUZE ── */}
+          {cvStage === "kiesFuncties" && cvData && (
+            <div style={{ flex: 1, display: "flex", justifyContent: "center", padding: 32, overflowY: "auto" }}>
+              <div style={{ maxWidth: 600, width: "100%" }}>
+                <div style={{ fontFamily: "Georgia,serif", fontSize: 22, fontWeight: 600, color: "#1a1a2e", marginBottom: 8 }}>Welke functies wil je uitwerken?</div>
+                <p style={{ fontSize: 13, color: "#666", lineHeight: 1.6, marginBottom: 20 }}>
+                  Je huidige functie staat al aangevinkt. Je mag er gerust meer aanvinken — functies waar je goed in was of die je leuk vond — maar dat hoeft niet.
+                </p>
+                {(cvData.functies || []).map((f, i) => (
+                  <div key={i} onClick={() => toggleFunctie(i)} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "14px 16px", borderRadius: 12, border: geselecteerdeFuncties.has(i) ? "2px solid #2a9d8f" : "2px solid #e8e7e0", background: geselecteerdeFuncties.has(i) ? "#f0faf8" : "#fff", marginBottom: 10, cursor: "pointer" }}>
+                    <div style={{ width: 20, height: 20, borderRadius: 6, border: geselecteerdeFuncties.has(i) ? "none" : "2px solid #d0cfc8", background: geselecteerdeFuncties.has(i) ? "#2a9d8f" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>
+                      {geselecteerdeFuncties.has(i) && <span style={{ color: "#fff", fontSize: 12 }}>✓</span>}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e" }}>{f.titel} {i === 0 && <span style={{ fontSize: 10, color: "#2a9d8f", fontWeight: 500 }}>· huidig</span>}</div>
+                      <div style={{ fontSize: 12, color: "#888", marginTop: 2 }}>{f.bedrijf} · {f.periode}</div>
+                    </div>
+                  </div>
+                ))}
+                <button onClick={genereerTaken} disabled={geselecteerdeFuncties.size === 0} style={{ marginTop: 12, padding: "12px 28px", borderRadius: 10, background: geselecteerdeFuncties.size === 0 ? "#ccc" : "#1a1a2e", color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: geselecteerdeFuncties.size === 0 ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
+                  Taken genereren voor {geselecteerdeFuncties.size} functie(s) →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {cvStage === "takenGenereren" && (
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 48, textAlign: "center", gap: 16 }}>
+              <Spinner />
+              <div style={{ fontFamily: "Georgia,serif", fontSize: 20, color: "#1a1a2e" }}>Taken worden gegenereerd…</div>
+              <div style={{ fontSize: 14, color: "#888", maxWidth: 340, lineHeight: 1.6 }}>Per functie stellen we een lijst samen: taken uit je CV, aangevuld met gebruikelijke taken voor dit beroep.</div>
+            </div>
+          )}
+
+          {/* ── TAKENSELECTIE ── */}
+          {cvStage === "takenSelecteren" && (
+            <div style={{ flex: 1, padding: "28px 32px", overflowY: "auto" }}>
+              <div style={{ maxWidth: 700, margin: "0 auto" }}>
+                <div style={{ fontFamily: "Georgia,serif", fontSize: 21, fontWeight: 600, color: "#1a1a2e", marginBottom: 8 }}>Check je taken</div>
+                <p style={{ fontSize: 13, color: "#666", marginBottom: 20, lineHeight: 1.6 }}>Alles staat aangevinkt. Vink taken uit die je nooit doet — de rest gebruiken we om je skills te bepalen.</p>
+
+                {[...geselecteerdeFuncties].map(idx => {
+                  const f = cvData.functies[idx];
+                  return (
+                    <Card key={idx} style={{ marginBottom: 20 }}>
+                      <div style={{ fontFamily: "Georgia,serif", fontSize: 16, fontWeight: 600, color: "#1a1a2e", marginBottom: 2 }}>{f.titel}</div>
+                      <div style={{ fontSize: 12, color: "#888", marginBottom: 14 }}>{f.bedrijf}</div>
+                      {(functieTaken[idx] || []).map(t => (
+                        <div key={t.id} onClick={() => toggleTaak(idx, t.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 8, cursor: "pointer", background: t.geselecteerd ? "transparent" : "#faf5f5" }}>
+                          <div style={{ width: 16, height: 16, borderRadius: 4, border: t.geselecteerd ? "none" : "2px solid #d0cfc8", background: t.geselecteerd ? "#2a9d8f" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            {t.geselecteerd && <span style={{ color: "#fff", fontSize: 9 }}>✓</span>}
+                          </div>
+                          <span style={{ fontSize: 13, color: t.geselecteerd ? "#333" : "#aaa", textDecoration: t.geselecteerd ? "none" : "line-through", flex: 1 }}>{t.taak}</span>
+                          <span style={{ fontSize: 9, padding: "2px 8px", borderRadius: 10, background: t.bron === "cv" ? "#eef2ff" : "#fef3c7", color: t.bron === "cv" ? "#3730a3" : "#92400e" }}>{t.bron === "cv" ? "📄 CV" : "🔧 beroep"}</span>
+                        </div>
+                      ))}
+                    </Card>
+                  );
+                })}
+
+                <button onClick={koppelSkills} style={{ padding: "13px 28px", borderRadius: 10, background: "#1a1a2e", color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                  Skills koppelen aan geselecteerde taken →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {cvStage === "skillsMatchen" && (
             <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 48, textAlign: "center", gap: 16 }}>
               <Spinner />
               <div style={{ fontFamily: "Georgia,serif", fontSize: 20, color: "#1a1a2e" }}>Skills worden gekoppeld aan ESCO…</div>
-              <div style={{ fontSize: 14, color: "#888", maxWidth: 340, lineHeight: 1.6 }}>Elke gevonden skill wordt vergeleken met de officiële ESCO-database, zodat je een traceerbaar skillsprofiel krijgt.</div>
+              <div style={{ fontSize: 14, color: "#888", maxWidth: 340, lineHeight: 1.6 }}>Per taak bepalen we de benodigde skills en matchen we deze aan de officiële ESCO-database.</div>
             </div>
           )}
 
           {cvStage === "error" && (
             <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 48, textAlign: "center", gap: 16 }}>
               <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 12, padding: "18px 24px", color: "#991b1b", fontSize: 14, lineHeight: 1.6, maxWidth: 440 }}>⚠️ {cvError}</div>
-              <button onClick={() => { setCvStage("upload"); setCvError(""); }} style={{ padding: "10px 22px", borderRadius: 10, background: "#1a1a2e", color: "#fff", border: "none", fontSize: 14, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>← Opnieuw proberen</button>
+              <button onClick={nieuwCv} style={{ padding: "10px 22px", borderRadius: 10, background: "#1a1a2e", color: "#fff", border: "none", fontSize: 14, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>← Opnieuw proberen</button>
             </div>
           )}
 
+          {/* ── RESULTAAT ── */}
           {cvStage === "result" && cvData && (
             <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
               <div style={{ background: "#fafaf8", borderBottom: "1px solid #e8e7e0", display: "flex", padding: "0 32px", overflowX: "auto", alignItems: "center" }}>
                 {RESULT_TABS.map(t => (
-                  <button key={t.id} onClick={() => setActiveResultTab(t.id)} style={{ padding: "13px 16px", fontSize: 13, fontWeight: 500, color: activeResultTab === t.id ? "#1a1a2e" : "#888", border: "none", borderBottom: activeResultTab === t.id ? "2px solid #e8c547" : "2px solid transparent", background: "none", cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" }}>
-                    {t.label}
-                  </button>
+                  <button key={t.id} onClick={() => setActiveResultTab(t.id)} style={{ padding: "13px 16px", fontSize: 13, fontWeight: 500, color: activeResultTab === t.id ? "#1a1a2e" : "#888", border: "none", borderBottom: activeResultTab === t.id ? "2px solid #e8c547" : "2px solid transparent", background: "none", cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" }}>{t.label}</button>
                 ))}
                 {saveStatus && (
                   <span style={{ marginLeft: 16, fontSize: 12, color: saveStatus === "opgeslagen" ? "#166534" : saveStatus === "fout" ? "#991b1b" : "#888" }}>
                     {saveStatus === "opslaan..." && "⏳ Opslaan in SkillsPortaal…"}
-                    {saveStatus === "opgeslagen" && `✅ Opgeslagen in SkillsPortaal${escoMatchCount ? ` (${escoMatchCount} ESCO-skills gekoppeld)` : ""}`}
+                    {saveStatus === "opgeslagen" && `✅ Opgeslagen (${escoMatchCount} ESCO-skills gekoppeld)`}
                     {saveStatus === "fout" && "⚠️ Opslaan mislukt"}
                   </span>
                 )}
-                <button onClick={() => { setCvStage("upload"); setCvData(null); setSaveStatus(null); }} style={{ marginLeft: "auto", padding: "13px 16px", fontSize: 13, color: "#c0392b", border: "none", borderBottom: "2px solid transparent", background: "none", cursor: "pointer", fontFamily: "inherit" }}>↩ Nieuw CV</button>
+                <button onClick={nieuwCv} style={{ marginLeft: "auto", padding: "13px 16px", fontSize: 13, color: "#c0392b", border: "none", borderBottom: "2px solid transparent", background: "none", cursor: "pointer", fontFamily: "inherit" }}>↩ Nieuw CV</button>
               </div>
 
               <div style={{ flex: 1, padding: "28px 32px", overflowY: "auto" }}>
 
-                {/* Functies */}
-                {activeResultTab === "functies" && (cvData.functies || []).map((f, i) => (
-                  <div key={i} style={{ background: "#fff", borderRadius: 16, border: "1px solid #e8e7e0", marginBottom: 20, overflow: "hidden" }}>
-                    <div style={{ background: "#1a1a2e", padding: "16px 22px", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
-                      <div>
-                        <div style={{ fontFamily: "Georgia,serif", fontSize: 18, fontWeight: 600, color: "#fff" }}>{f.titel}</div>
-                        <div style={{ fontSize: 13, color: "#8a8aaa", marginTop: 2 }}>{f.bedrijf}</div>
-                      </div>
-                      {f.periode && <span style={{ fontSize: 12, color: "#e8c547", background: "rgba(232,197,71,0.15)", padding: "4px 12px", borderRadius: 20, fontWeight: 500 }}>{f.periode}</span>}
-                    </div>
-                    <div style={{ padding: "18px 22px" }}>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: "#aaa", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 10 }}>Taken & verantwoordelijkheden</div>
-                      <ul style={{ listStyle: "none", marginBottom: 18 }}>
-                        {(f.taken || []).map((t, j) => <li key={j} style={{ fontSize: 13, color: "#444", padding: "4px 0 4px 16px", position: "relative", lineHeight: 1.5 }}><span style={{ position: "absolute", left: 0, color: "#e8c547" }}>→</span>{t}</li>)}
-                      </ul>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                        {[{ label: "Hard skills", key: "hardSkills", bg: "#eef2ff", col: "#3730a3" }, { label: "Soft skills", key: "softSkills", bg: "#fef3c7", col: "#92400e" }].map(({ label, key, bg, col }) => (
-                          <div key={key}>
-                            <div style={{ fontSize: 11, fontWeight: 600, color: "#888", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>{label}</div>
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                              {(f[key] || []).map((item, j) => <EscoSkillPill key={j} item={item} bg={bg} col={col} />)}
-                            </div>
+                {/* Functies & Skills */}
+                {activeResultTab === "functies" && (
+                  <>
+                    {[...geselecteerdeFuncties].map(idx => {
+                      const f = cvData.functies[idx];
+                      const taken = functieSkills[idx] || [];
+                      return (
+                        <div key={idx} style={{ background: "#fff", borderRadius: 16, border: "1px solid #e8e7e0", marginBottom: 20, overflow: "hidden" }}>
+                          <div style={{ background: "#1a1a2e", padding: "16px 22px" }}>
+                            <div style={{ fontFamily: "Georgia,serif", fontSize: 18, fontWeight: 600, color: "#fff" }}>{f.titel}</div>
+                            <div style={{ fontSize: 13, color: "#8a8aaa", marginTop: 2 }}>{f.bedrijf}</div>
                           </div>
+                          <div style={{ padding: "18px 22px" }}>
+                            {taken.length === 0 && <p style={{ fontSize: 13, color: "#888" }}>Geen taken geselecteerd voor deze functie.</p>}
+                            {taken.map((t, j) => (
+                              <div key={j} style={{ marginBottom: 16, paddingBottom: 16, borderBottom: j < taken.length - 1 ? "1px solid #f0efe8" : "none" }}>
+                                <div style={{ fontSize: 13, color: "#444", marginBottom: 8 }}>→ {t.taak}</div>
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                                  {t.hardskills.map((s, k) => <EscoSkillPill key={"h"+k} item={s} bg="#eef2ff" col="#3730a3" />)}
+                                  {t.softskills.map((s, k) => <EscoSkillPill key={"s"+k} item={s} bg="#fef3c7" col="#92400e" />)}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {alleUniekeSkills.length > 0 && (
+                      <Card style={{ marginTop: 8 }}>
+                        <SectionTitle>📊 Beoordeel jezelf per skill</SectionTitle>
+                        <p style={{ fontSize: 12, color: "#888", marginBottom: 14 }}>Van 1 (beginner) tot 5 (expert) — dit helpt bij een eerlijk skillsprofiel.</p>
+                        {alleUniekeSkills.map(tekst => (
+                          <NiveauKiezer key={tekst} tekst={tekst} waarde={niveaus[tekst]} onChange={wijzigNiveau} />
                         ))}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                      </Card>
+                    )}
+                  </>
+                )}
 
                 {/* WKSW */}
                 {activeResultTab === "wksw" && (
                   <div>
                     <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", gap: 24, marginBottom: 16, alignItems: "start" }}>
-                      <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e8e7e0", padding: 20 }}>
-                        <SkillsModel />
-                      </div>
+                      <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e8e7e0", padding: 20 }}><SkillsModel /></div>
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                         {[
                           { key: "weten", label: "Weten", icon: "📚", sub: "Kennis & expertise", col: "#4a9e4e" },
@@ -648,7 +755,7 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Opleiding */}
+                {/* Opleiding & Hobby's */}
                 {activeResultTab === "opleiding" && (
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
                     <Card>
@@ -668,9 +775,7 @@ export default function App() {
                       {(cvData.hobbySkills?.length > 0) && (
                         <>
                           <div style={{ fontSize: 11, fontWeight: 600, color: "#888", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>Skills die hieruit blijken</div>
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                            {cvData.hobbySkills.map((item, i) => <EscoSkillPill key={i} item={item} bg="#eef2ff" col="#3730a3" />)}
-                          </div>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{cvData.hobbySkills.map((item, i) => <EscoSkillPill key={i} item={item} bg="#eef2ff" col="#3730a3" />)}</div>
                         </>
                       )}
                     </Card>
@@ -711,7 +816,6 @@ export default function App() {
       {/* ══ DRIJFVEREN TAB ══ */}
       {mainTab === "drijfveren" && (
         <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-
           {drijfStap === 0 && (
             <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "32px 24px", gap: 48, flexWrap: "wrap" }}>
               <div style={{ maxWidth: 240 }}>
@@ -721,30 +825,20 @@ export default function App() {
               <div style={{ background: "#fff", borderRadius: 20, border: "1px solid #e8e7e0", padding: "40px 36px", maxWidth: 420, width: "100%", textAlign: "center" }}>
                 <div style={{ fontSize: 48, marginBottom: 16 }}>🔥</div>
                 <div style={{ fontFamily: "Georgia,serif", fontSize: 22, fontWeight: 600, color: "#1a1a2e", marginBottom: 12 }}>Wat drijft jou?</div>
-                <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7, marginBottom: 24 }}>
-                  In 5 vragen ontdek je wat jou écht motiveert op het werk. Geen goed of fout antwoord — kies gewoon wat het meest bij jou past.
-                </p>
+                <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7, marginBottom: 24 }}>In 5 vragen ontdek je wat jou écht motiveert op het werk. Geen goed of fout antwoord — kies gewoon wat het meest bij jou past.</p>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", marginBottom: 28 }}>
-                  {Object.entries(DRIJFVEER_TYPES).map(([k, v]) => (
-                    <span key={k} style={{ fontSize: 12, padding: "5px 12px", borderRadius: 20, background: v.kleur + "20", color: v.kleur, fontWeight: 600, border: `1px solid ${v.kleur}44` }}>{v.emoji} {v.label}</span>
-                  ))}
+                  {Object.entries(DRIJFVEER_TYPES).map(([k, v]) => (<span key={k} style={{ fontSize: 12, padding: "5px 12px", borderRadius: 20, background: v.kleur + "20", color: v.kleur, fontWeight: 600, border: `1px solid ${v.kleur}44` }}>{v.emoji} {v.label}</span>))}
                 </div>
                 <button onClick={() => { setDrijfStap(1); setAntwoorden({}); setDrijfResultaat(null); }} style={{ padding: "13px 32px", borderRadius: 12, background: "#1a1a2e", color: "#fff", border: "none", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Start de test →</button>
               </div>
             </div>
           )}
-
           {drijfStap >= 1 && drijfStap <= DRIJFVEER_VRAGEN.length && huidigVraag && (
             <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 32 }}>
               <div style={{ maxWidth: 580, width: "100%" }}>
                 <div style={{ marginBottom: 24 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#888", marginBottom: 8 }}>
-                    <span>Vraag {drijfStap} van {DRIJFVEER_VRAGEN.length}</span>
-                    <span>{Math.round((drijfStap - 1) / DRIJFVEER_VRAGEN.length * 100)}%</span>
-                  </div>
-                  <div style={{ height: 6, background: "#e0e0d8", borderRadius: 10 }}>
-                    <div style={{ height: "100%", background: "linear-gradient(90deg,#e8c547,#f0a500)", borderRadius: 10, width: `${((drijfStap - 1) / DRIJFVEER_VRAGEN.length) * 100}%`, transition: "width 0.3s" }} />
-                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#888", marginBottom: 8 }}><span>Vraag {drijfStap} van {DRIJFVEER_VRAGEN.length}</span><span>{Math.round((drijfStap - 1) / DRIJFVEER_VRAGEN.length * 100)}%</span></div>
+                  <div style={{ height: 6, background: "#e0e0d8", borderRadius: 10 }}><div style={{ height: "100%", background: "linear-gradient(90deg,#e8c547,#f0a500)", borderRadius: 10, width: `${((drijfStap - 1) / DRIJFVEER_VRAGEN.length) * 100}%`, transition: "width 0.3s" }} /></div>
                 </div>
                 <Card style={{ padding: "32px 28px" }}>
                   <div style={{ fontFamily: "Georgia,serif", fontSize: 20, fontWeight: 600, color: "#1a1a2e", marginBottom: 24, lineHeight: 1.4 }}>{huidigVraag.vraag}</div>
@@ -752,75 +846,35 @@ export default function App() {
                     {huidigVraag.opties.map((opt, i) => {
                       const type = DRIJFVEER_TYPES[opt.type];
                       const gekozen = antwoorden[drijfStap] === opt.type;
-                      return (
-                        <button key={i} onClick={() => kiesAntwoord(opt.type)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 18px", borderRadius: 12, border: gekozen ? `2px solid ${type.kleur}` : "2px solid #e8e7e0", background: gekozen ? type.kleur + "18" : "#fafaf8", cursor: "pointer", textAlign: "left", transition: "all 0.15s", fontFamily: "inherit" }}>
-                          <span style={{ fontSize: 18, flexShrink: 0 }}>{type.emoji}</span>
-                          <span style={{ fontSize: 14, color: "#333", lineHeight: 1.5 }}>{opt.tekst}</span>
-                        </button>
-                      );
+                      return (<button key={i} onClick={() => kiesAntwoord(opt.type)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 18px", borderRadius: 12, border: gekozen ? `2px solid ${type.kleur}` : "2px solid #e8e7e0", background: gekozen ? type.kleur + "18" : "#fafaf8", cursor: "pointer", textAlign: "left", transition: "all 0.15s", fontFamily: "inherit" }}><span style={{ fontSize: 18, flexShrink: 0 }}>{type.emoji}</span><span style={{ fontSize: 14, color: "#333", lineHeight: 1.5 }}>{opt.tekst}</span></button>);
                     })}
                   </div>
                 </Card>
                 {alleBeantwoord && drijfStap === DRIJFVEER_VRAGEN.length && (
-                  <div style={{ textAlign: "center", marginTop: 24 }}>
-                    <button onClick={async () => { const scores = berekenScores(antwoorden); setDrijfStap(DRIJFVEER_VRAGEN.length + 1); await genereerDrijfverenProfiel(scores); }} style={{ padding: "13px 32px", borderRadius: 12, background: "#1a1a2e", color: "#fff", border: "none", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Bekijk mijn drijfveren →</button>
-                  </div>
+                  <div style={{ textAlign: "center", marginTop: 24 }}><button onClick={async () => { const scores = berekenScores(antwoorden); setDrijfStap(DRIJFVEER_VRAGEN.length + 1); await genereerDrijfverenProfiel(scores); }} style={{ padding: "13px 32px", borderRadius: 12, background: "#1a1a2e", color: "#fff", border: "none", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Bekijk mijn drijfveren →</button></div>
                 )}
               </div>
             </div>
           )}
-
           {drijfStap > DRIJFVEER_VRAGEN.length && drijfLoading && (
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 48, textAlign: "center", gap: 16 }}>
-              <Spinner />
-              <div style={{ fontFamily: "Georgia,serif", fontSize: 20, color: "#1a1a2e" }}>Jouw drijfveren worden in kaart gebracht…</div>
-              <div style={{ fontSize: 14, color: "#888" }}>Je antwoorden worden geanalyseerd en er wordt een persoonlijk profiel geschreven.</div>
-            </div>
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 48, textAlign: "center", gap: 16 }}><Spinner /><div style={{ fontFamily: "Georgia,serif", fontSize: 20, color: "#1a1a2e" }}>Jouw drijfveren worden in kaart gebracht…</div><div style={{ fontSize: 14, color: "#888" }}>Je antwoorden worden geanalyseerd en er wordt een persoonlijk profiel geschreven.</div></div>
           )}
-
           {drijfStap > DRIJFVEER_VRAGEN.length && !drijfLoading && drijfResultaat && (() => {
             const { scores, gesorteerd, interpretatie } = drijfResultaat;
             const top3 = gesorteerd.slice(0, 3);
             return (
               <div style={{ flex: 1, overflowY: "auto", padding: "28px 32px" }}>
                 <div style={{ maxWidth: 680 }}>
-
                   <div style={{ background: "#1a1a2e", borderRadius: 20, padding: "24px 28px", marginBottom: 20 }}>
                     <div style={{ fontSize: 12, color: "#8a8aaa", marginBottom: 10, letterSpacing: "0.8px", textTransform: "uppercase" }}>Jouw belangrijkste drijfveren</div>
                     <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                      {top3.map(([k], i) => {
-                        const t = DRIJFVEER_TYPES[k];
-                        return (
-                          <div key={k} style={{ display: "flex", alignItems: "center", gap: 10, background: t.kleur + "25", border: `1px solid ${t.kleur}55`, borderRadius: 12, padding: "10px 16px" }}>
-                            <span style={{ fontSize: 22 }}>{t.emoji}</span>
-                            <div>
-                              <div style={{ fontSize: 11, color: "#8a8aaa", fontWeight: 500 }}>#{i + 1}</div>
-                              <div style={{ fontSize: 15, fontWeight: 700, color: t.kleur }}>{t.label}</div>
-                            </div>
-                          </div>
-                        );
-                      })}
+                      {top3.map(([k], i) => { const t = DRIJFVEER_TYPES[k]; return (<div key={k} style={{ display: "flex", alignItems: "center", gap: 10, background: t.kleur + "25", border: `1px solid ${t.kleur}55`, borderRadius: 12, padding: "10px 16px" }}><span style={{ fontSize: 22 }}>{t.emoji}</span><div><div style={{ fontSize: 11, color: "#8a8aaa", fontWeight: 500 }}>#{i + 1}</div><div style={{ fontSize: 15, fontWeight: 700, color: t.kleur }}>{t.label}</div></div></div>); })}
                     </div>
                   </div>
-
                   <Card style={{ marginBottom: 16 }}>
                     <SectionTitle>📊 Jouw drijfverenprofiel</SectionTitle>
-                    {gesorteerd.map(([k, v]) => {
-                      const t = DRIJFVEER_TYPES[k];
-                      return (
-                        <div key={k} style={{ marginBottom: 12 }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 5 }}>
-                            <span style={{ fontWeight: 500 }}>{t.emoji} {t.label}</span>
-                            <span style={{ fontSize: 12, color: "#888" }}>{t.omschrijving.split(".")[0]}</span>
-                          </div>
-                          <div style={{ height: 8, background: "#f0efe8", borderRadius: 10 }}>
-                            <div style={{ height: "100%", background: t.kleur, borderRadius: 10, width: v === 0 ? "4px" : `${(v / DRIJFVEER_VRAGEN.length) * 100}%`, transition: "width 0.5s" }} />
-                          </div>
-                        </div>
-                      );
-                    })}
+                    {gesorteerd.map(([k, v]) => { const t = DRIJFVEER_TYPES[k]; return (<div key={k} style={{ marginBottom: 12 }}><div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 5 }}><span style={{ fontWeight: 500 }}>{t.emoji} {t.label}</span><span style={{ fontSize: 12, color: "#888" }}>{t.omschrijving.split(".")[0]}</span></div><div style={{ height: 8, background: "#f0efe8", borderRadius: 10 }}><div style={{ height: "100%", background: t.kleur, borderRadius: 10, width: v === 0 ? "4px" : `${(v / DRIJFVEER_VRAGEN.length) * 100}%`, transition: "width 0.5s" }} /></div></div>); })}
                   </Card>
-
                   {interpretatie && (
                     <Card style={{ marginBottom: 16 }}>
                       <SectionTitle>🧠 Wat dit over jou zegt</SectionTitle>
@@ -828,25 +882,15 @@ export default function App() {
                       <p style={{ fontSize: 14, color: "#333", lineHeight: 1.75, marginBottom: 18 }}>{interpretatie.werkvoorkeur}</p>
                       <div style={{ fontWeight: 600, fontSize: 13, color: "#555", marginBottom: 10 }}>💼 Werkomgevingen die bij jou passen</div>
                       <div style={{ marginBottom: 18 }}>{(interpretatie.beroepen || []).map((b, i) => <span key={i} style={{ fontSize: 13, padding: "7px 16px", borderRadius: 20, background: "#f0f4ff", color: "#3730a3", fontWeight: 500, border: "1px solid #c7d2fe", display: "inline-block", margin: "0 6px 6px 0" }}>{b}</span>)}</div>
-                      <div style={{ background: "#f0fdf4", borderRadius: 12, padding: "14px 18px", border: "1px solid #bbf7d0" }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: "#166534", marginBottom: 6 }}>💡 Tip voor jouw loopbaan</div>
-                        <div style={{ fontSize: 13, color: "#166534", lineHeight: 1.6 }}>{interpretatie.tip}</div>
-                      </div>
+                      <div style={{ background: "#f0fdf4", borderRadius: 12, padding: "14px 18px", border: "1px solid #bbf7d0" }}><div style={{ fontSize: 13, fontWeight: 600, color: "#166534", marginBottom: 6 }}>💡 Tip voor jouw loopbaan</div><div style={{ fontSize: 13, color: "#166534", lineHeight: 1.6 }}>{interpretatie.tip}</div></div>
                     </Card>
                   )}
-
                   <Card style={{ marginBottom: 20 }}>
                     <SectionTitle>📖 Wat betekenen de drijfveren?</SectionTitle>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                      {Object.entries(DRIJFVEER_TYPES).map(([k, v]) => (
-                        <div key={k} style={{ padding: "12px 14px", borderRadius: 10, background: v.kleur + "12", border: `1px solid ${v.kleur}30` }}>
-                          <div style={{ fontWeight: 600, fontSize: 13, color: v.kleur, marginBottom: 4 }}>{v.emoji} {v.label}</div>
-                          <div style={{ fontSize: 12, color: "#555", lineHeight: 1.5 }}>{v.omschrijving}</div>
-                        </div>
-                      ))}
+                      {Object.entries(DRIJFVEER_TYPES).map(([k, v]) => (<div key={k} style={{ padding: "12px 14px", borderRadius: 10, background: v.kleur + "12", border: `1px solid ${v.kleur}30` }}><div style={{ fontWeight: 600, fontSize: 13, color: v.kleur, marginBottom: 4 }}>{v.emoji} {v.label}</div><div style={{ fontSize: 12, color: "#555", lineHeight: 1.5 }}>{v.omschrijving}</div></div>))}
                     </div>
                   </Card>
-
                   <button onClick={() => { setDrijfStap(0); setAntwoorden({}); setDrijfResultaat(null); }} style={{ padding: "11px 24px", borderRadius: 10, background: "#1a1a2e", color: "#fff", border: "none", fontSize: 14, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>↩ Test opnieuw doen</button>
                 </div>
               </div>
@@ -859,53 +903,22 @@ export default function App() {
       {mainTab === "ontwikkel" && (
         <div style={{ flex: 1, overflowY: "auto", padding: "32px" }}>
           <div style={{ maxWidth: 680 }}>
-
             <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #e8e7e0", padding: "14px 20px", marginBottom: 24, display: "flex", gap: 20, flexWrap: "wrap", alignItems: "center" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-                <span>{cvData ? "✅" : "⬜"}</span>
-                <span style={{ color: cvData ? "#166534" : "#888", fontWeight: 500 }}>{cvData ? "CV geanalyseerd" : "Nog geen CV — upload eerst"}</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-                <span>{drijfResultaat ? "✅" : "⬜"}</span>
-                <span style={{ color: drijfResultaat ? "#166534" : "#888", fontWeight: 500 }}>
-                  {drijfResultaat ? `Drijfveren: ${Object.entries(drijfResultaat.scores).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k])=>DRIJFVEER_TYPES[k].label).join(" · ")}` : "Drijfveren test nog niet gedaan"}
-                </span>
-              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}><span>{cvData ? "✅" : "⬜"}</span><span style={{ color: cvData ? "#166534" : "#888", fontWeight: 500 }}>{cvData ? "CV geanalyseerd" : "Nog geen CV — upload eerst"}</span></div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}><span>{drijfResultaat ? "✅" : "⬜"}</span><span style={{ color: drijfResultaat ? "#166534" : "#888", fontWeight: 500 }}>{drijfResultaat ? `Drijfveren: ${Object.entries(drijfResultaat.scores).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k])=>DRIJFVEER_TYPES[k].label).join(" · ")}` : "Drijfveren test nog niet gedaan"}</span></div>
               {!heeftContext && <div style={{ fontSize: 12, color: "#f0a500", fontStyle: "italic", width: "100%" }}>Tip: doe eerst de CV Analyse en/of Drijfveren Test voor een persoonlijker advies.</div>}
             </div>
-
             <Card style={{ marginBottom: 20 }}>
               <SectionTitle>🌱 Waar wil jij naartoe groeien?</SectionTitle>
-              <p style={{ fontSize: 13, color: "#666", lineHeight: 1.6, marginBottom: 16 }}>
-                Beschrijf zo concreet mogelijk wat je wilt ontwikkelen. Dat kan een richting zijn, een rol, een vaardigheid of iets heel persoonlijks.
-              </p>
-              <textarea
-                value={ontwikkelDoel}
-                onChange={e => setOntwikkelDoel(e.target.value)}
-                placeholder="Bijv: Ik wil doorgroeien naar een leidinggevende rol, maar merk dat ik moeite heb om mensen aan te sturen. Ik wil ook meer richting strategisch HR…"
-                style={{ width: "100%", minHeight: 110, padding: "14px 16px", borderRadius: 10, border: "1px solid #d0cfc8", fontSize: 14, fontFamily: "inherit", lineHeight: 1.6, color: "#333", background: "#fafaf8", resize: "vertical", outline: "none", boxSizing: "border-box" }}
-              />
+              <p style={{ fontSize: 13, color: "#666", lineHeight: 1.6, marginBottom: 16 }}>Beschrijf zo concreet mogelijk wat je wilt ontwikkelen. Dat kan een richting zijn, een rol, een vaardigheid of iets heel persoonlijks.</p>
+              <textarea value={ontwikkelDoel} onChange={e => setOntwikkelDoel(e.target.value)} placeholder="Bijv: Ik wil doorgroeien naar een leidinggevende rol, maar merk dat ik moeite heb om mensen aan te sturen…" style={{ width: "100%", minHeight: 110, padding: "14px 16px", borderRadius: 10, border: "1px solid #d0cfc8", fontSize: 14, fontFamily: "inherit", lineHeight: 1.6, color: "#333", background: "#fafaf8", resize: "vertical", outline: "none", boxSizing: "border-box" }} />
               <div style={{ marginTop: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontSize: 12, color: "#aaa" }}>{ontwikkelDoel.length} tekens</span>
-                <button onClick={genereerOntwikkelAdvies} disabled={ontwikkelDoel.trim().length < 10 || ontwikkelLoading}
-                  style={{ padding: "12px 28px", borderRadius: 10, background: ontwikkelDoel.trim().length < 10 ? "#ccc" : "#1a1a2e", color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: ontwikkelDoel.trim().length < 10 ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
-                  {ontwikkelLoading ? "Bezig…" : "Genereer ontwikkeladvies →"}
-                </button>
+                <button onClick={genereerOntwikkelAdvies} disabled={ontwikkelDoel.trim().length < 10 || ontwikkelLoading} style={{ padding: "12px 28px", borderRadius: 10, background: ontwikkelDoel.trim().length < 10 ? "#ccc" : "#1a1a2e", color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: ontwikkelDoel.trim().length < 10 ? "not-allowed" : "pointer", fontFamily: "inherit" }}>{ontwikkelLoading ? "Bezig…" : "Genereer ontwikkeladvies →"}</button>
               </div>
             </Card>
-
-            {ontwikkelLoading && (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 0", gap: 16, textAlign: "center" }}>
-                <Spinner />
-                <div style={{ fontFamily: "Georgia,serif", fontSize: 18, color: "#1a1a2e" }}>Ontwikkeladvies wordt opgesteld…</div>
-                <div style={{ fontSize: 13, color: "#888" }}>Jouw doel, CV en drijfveren worden gecombineerd tot een persoonlijk plan.</div>
-              </div>
-            )}
-
-            {ontwikkelError && !ontwikkelLoading && (
-              <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 12, padding: "16px 20px", color: "#991b1b", fontSize: 14, lineHeight: 1.6 }}>⚠️ {ontwikkelError}</div>
-            )}
-
+            {ontwikkelLoading && (<div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 0", gap: 16, textAlign: "center" }}><Spinner /><div style={{ fontFamily: "Georgia,serif", fontSize: 18, color: "#1a1a2e" }}>Ontwikkeladvies wordt opgesteld…</div><div style={{ fontSize: 13, color: "#888" }}>Jouw doel, CV en drijfveren worden gecombineerd tot een persoonlijk plan.</div></div>)}
+            {ontwikkelError && !ontwikkelLoading && (<div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 12, padding: "16px 20px", color: "#991b1b", fontSize: 14, lineHeight: 1.6 }}>⚠️ {ontwikkelError}</div>)}
             {ontwikkelAdvies && !ontwikkelLoading && (
               <div>
                 <div style={{ background: "#1a1a2e", borderRadius: 16, padding: "24px 28px", marginBottom: 16 }}>
@@ -913,40 +926,15 @@ export default function App() {
                   <div style={{ fontFamily: "Georgia,serif", fontSize: 22, fontWeight: 700, color: "#e8c547", marginBottom: 10 }}>{ontwikkelAdvies.richting}</div>
                   <p style={{ fontSize: 14, color: "#ccc", lineHeight: 1.7, margin: 0 }}>{ontwikkelAdvies.richtingToelichting}</p>
                 </div>
-
-                <Card style={{ marginBottom: 16 }}>
-                  <SectionTitle>🎯 Waarom past dit bij jou?</SectionTitle>
-                  <p style={{ fontSize: 14, color: "#333", lineHeight: 1.7, margin: 0 }}>{ontwikkelAdvies.waaromPassend}</p>
-                </Card>
-
+                <Card style={{ marginBottom: 16 }}><SectionTitle>🎯 Waarom past dit bij jou?</SectionTitle><p style={{ fontSize: 14, color: "#333", lineHeight: 1.7, margin: 0 }}>{ontwikkelAdvies.waaromPassend}</p></Card>
                 <Card style={{ marginBottom: 16 }}>
                   <SectionTitle>📈 Concrete leerstappen</SectionTitle>
                   <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                    {(ontwikkelAdvies.leerstappen || []).map((stap, i) => (
-                      <div key={i} style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-                        <div style={{ width: 28, height: 28, borderRadius: 8, background: "#1a1a2e", color: "#e8c547", fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{i + 1}</div>
-                        <div>
-                          <div style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", marginBottom: 3 }}>{stap.titel}</div>
-                          <div style={{ fontSize: 13, color: "#555", lineHeight: 1.6 }}>{stap.omschrijving}</div>
-                          {stap.tijdsindicatie && <div style={{ fontSize: 12, color: "#e67e22", marginTop: 4, fontWeight: 500 }}>⏱ {stap.tijdsindicatie}</div>}
-                        </div>
-                      </div>
-                    ))}
+                    {(ontwikkelAdvies.leerstappen || []).map((stap, i) => (<div key={i} style={{ display: "flex", gap: 14, alignItems: "flex-start" }}><div style={{ width: 28, height: 28, borderRadius: 8, background: "#1a1a2e", color: "#e8c547", fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{i + 1}</div><div><div style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", marginBottom: 3 }}>{stap.titel}</div><div style={{ fontSize: 13, color: "#555", lineHeight: 1.6 }}>{stap.omschrijving}</div>{stap.tijdsindicatie && <div style={{ fontSize: 12, color: "#e67e22", marginTop: 4, fontWeight: 500 }}>⏱ {stap.tijdsindicatie}</div>}</div></div>))}
                   </div>
                 </Card>
-
-                <div style={{ background: "#f0fdf4", borderRadius: 14, padding: "18px 22px", border: "1px solid #bbf7d0", marginBottom: 14 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: "#166534", marginBottom: 8 }}>⚡ Jouw eerste actie — doe dit deze week</div>
-                  <p style={{ fontSize: 14, color: "#166534", lineHeight: 1.7, margin: 0 }}>{ontwikkelAdvies.eersteActie}</p>
-                </div>
-
-                {ontwikkelAdvies.aandachtspunt && (
-                  <div style={{ background: "#fffbeb", borderRadius: 14, padding: "16px 20px", border: "1px solid #fde68a", marginBottom: 16 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: "#92400e", marginBottom: 6 }}>⚠️ Houd dit in de gaten</div>
-                    <p style={{ fontSize: 13, color: "#92400e", lineHeight: 1.6, margin: 0 }}>{ontwikkelAdvies.aandachtspunt}</p>
-                  </div>
-                )}
-
+                <div style={{ background: "#f0fdf4", borderRadius: 14, padding: "18px 22px", border: "1px solid #bbf7d0", marginBottom: 14 }}><div style={{ fontSize: 14, fontWeight: 700, color: "#166534", marginBottom: 8 }}>⚡ Jouw eerste actie — doe dit deze week</div><p style={{ fontSize: 14, color: "#166534", lineHeight: 1.7, margin: 0 }}>{ontwikkelAdvies.eersteActie}</p></div>
+                {ontwikkelAdvies.aandachtspunt && (<div style={{ background: "#fffbeb", borderRadius: 14, padding: "16px 20px", border: "1px solid #fde68a", marginBottom: 16 }}><div style={{ fontSize: 14, fontWeight: 600, color: "#92400e", marginBottom: 6 }}>⚠️ Houd dit in de gaten</div><p style={{ fontSize: 13, color: "#92400e", lineHeight: 1.6, margin: 0 }}>{ontwikkelAdvies.aandachtspunt}</p></div>)}
                 <button onClick={() => { setOntwikkelAdvies(null); setOntwikkelDoel(""); }} style={{ padding: "10px 22px", borderRadius: 10, background: "#f5f4f0", color: "#444", border: "1px solid #d0cfc8", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>↩ Nieuw advies genereren</button>
               </div>
             )}
@@ -963,7 +951,7 @@ const CV_PROMPT = `Je bent een expert loopbaancoach en CV-analist. Analyseer het
 Retourneer ALLEEN een JSON-object (geen uitleg, geen markdown backticks) met EXACT deze structuur:
 
 {
-  "functies": [{"titel":"","bedrijf":"","periode":"","taken":["","","",""],"hardSkills":["","","",""],"softSkills":["","","",""]}],
+  "functies": [{"titel":"","bedrijf":"","periode":"","taken":["","","","",""]}],
   "weten": ["","","",""],
   "kunnen": ["","","",""],
   "zijn": ["","","",""],
@@ -978,12 +966,45 @@ Retourneer ALLEEN een JSON-object (geen uitleg, geen markdown backticks) met EXA
 }
 
 Regels:
-- Alleen 3 meest recente functies, exact 4 taken/hardSkills/softSkills per functie
-- "hobbySkills": leid concrete skills af uit de hobby's/nevenactiviteiten van deze persoon (bijv. vrijwilligerswerk als trainer → "coachen", "geduld hebben"). Dit is ALTIJD verplicht in te vullen als er hobby's/nevenactiviteiten gevonden zijn, ongeacht hoeveel werkervaring er is.
+- Haal ALLE functies op die je in het CV vindt (niet beperkt tot een aantal) — de gebruiker kiest zelf welke functies hij verder wil uitwerken.
+- Per functie: "taken" bevat 4-6 taken die letterlijk of licht herschreven uit het CV blijken (dit is de basis voor een latere, uitgebreidere taken-analyse — dus GEEN hardSkills/softSkills hier, die komen in een latere stap).
+- BELANGRIJK — wees zo specifiek/fijnmazig mogelijk: gebruik de meest precieze term die het CV noemt, niet een algemenere samenvatting. Voorbeeld: als het CV "MIG-lassen" noemt, schrijf dan "MIG-lassen" en niet het algemenere "lassen". Val alleen terug op een algemenere term als het CV zelf geen specifiekere aanduiding geeft.
+- "hobbySkills": leid concrete skills af uit de hobby's/nevenactiviteiten van deze persoon (bijv. vrijwilligerswerk als trainer → "coachen", "geduld hebben"). Dit is ALTIJD verplicht in te vullen als er hobby's/nevenactiviteiten gevonden zijn. Ook hier: wees zo specifiek mogelijk.
 - top5 heeft precies 5 items
 - verhaal in ik-vorm authentiek en krachtig
 - ontbrekende info = lege array []
 - UITSLUITEND het JSON-object retourneren`;
+
+function takenPrompt(functie) {
+  return `Je bent een loopbaanexpert. Genereer een realistische, volledige lijst van taken voor de volgende functie.
+
+Functietitel: "${functie.titel}"
+Bedrijf/context: "${functie.bedrijf}"
+Taken die al uit het CV blijken: ${JSON.stringify(functie.taken || [])}
+
+Genereer een lijst van ongeveer 15 taken in totaal:
+- Neem de taken uit het CV letterlijk of licht herschreven over, met "bron": "cv"
+- Vul aan met taken die gebruikelijk zijn voor dit beroep/deze functie, met "bron": "beroep"
+- Wees zo specifiek/fijnmazig mogelijk (bijv. "MIG-lassen uitvoeren" i.p.v. "lassen uitvoeren")
+
+Antwoord ALLEEN met dit JSON-object (geen backticks):
+{"taken": [{"taak": "", "bron": "cv"}, {"taak": "", "bron": "beroep"}]}`;
+}
+
+function skillsPerTaakPrompt(functieTitel, taken) {
+  return `Je bent een skills-expert. Voor de functie "${functieTitel}" krijg je een lijst met taken. Bepaal per taak welke concrete hardskills (vakinhoudelijk) en softskills (persoonlijk/sociaal) hierbij nodig zijn.
+
+Taken:
+${taken.map((t, i) => `${i + 1}. ${t}`).join("\n")}
+
+Regels:
+- Per taak: 1-3 hardskills en 0-2 softskills
+- Wees zo specifiek mogelijk (bijv. "MIG-lassen" i.p.v. "lassen")
+- Gebruik korte, concrete termen (geen hele zinnen)
+
+Antwoord ALLEEN met dit JSON-object (geen backticks):
+{"taken": [{"taak":"<exacte taaktekst zoals hierboven>", "hardskills":["",""], "softskills":[""]}]}`;
+}
 
 function drijfverenPrompt(scores, top3) {
   const labels = Object.entries(scores).map(([k, v]) => `${DRIJFVEER_TYPES[k].label}: ${v}/5`).join(", ");
