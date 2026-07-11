@@ -8,7 +8,36 @@ const SUPABASE_URL = "https://stzgxsgocqbuquzavgsu.supabase.co";
 const SUPABASE_KEY = "sb_publishable_JaDLY5jH7poc4oRjx_EoeQ_c2jyT39c";
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-/** Zoekt de best passende ESCO-skill voor een stukje tekst, via het achterkamertje. */
+/** Haalt het complete, opgeslagen skillsprofiel van de ingelogde medewerker op. */
+async function haalSkillsprofielOp(authUserId) {
+  const { data: medewerker } = await supabase.from("medewerkers").select("id").eq("auth_user_id", authUserId).maybeSingle();
+  if (!medewerker) return [];
+
+  const { data, error } = await supabase
+    .from("medewerker_skills")
+    .select(`
+      bron,
+      toegevoegd_op,
+      skills (
+        id,
+        bron_label,
+        skill_matches ( esco_anker_code, confidence_score, match_bron )
+      )
+    `)
+    .eq("medewerker_id", medewerker.id)
+    .order("toegevoegd_op", { ascending: false });
+
+  if (error) { console.error("Fout bij ophalen skillsprofiel:", error); return []; }
+  return data || [];
+}
+
+// ─── Matcht een lijst skill-teksten parallel aan ESCO (sneller dan één voor één). ──
+async function verrijkMetEsco(teksten) {
+  const matches = await Promise.all(teksten.map(tekst => vindEscoMatch(tekst)));
+  return teksten.map((tekst, i) => ({ tekst, esco: matches[i] }));
+}
+
+// ─── Zoekt de best passende ESCO-skill voor een stukje tekst, via het achterkamertje. ──
 async function vindEscoMatch(skillLabel) {
   try {
     const res = await fetch("/api/esco-match", {
@@ -23,31 +52,52 @@ async function vindEscoMatch(skillLabel) {
   }
 }
 
-/** Slaat de gevonden CV-skills op in de SkillsPortaal database, gekoppeld aan de ingelogde medewerker. */
+/** Slaat de gevonden CV-skills op in de SkillsPortaal database, gekoppeld aan de ingelogde medewerker.
+ * Verwacht cvData waarin hardSkills/softSkills/hobbySkills al "verrijkt" zijn met ESCO-matches
+ * (dus vorm: [{tekst, esco}, ...]) — zo hoeft er niet dubbel gematcht te worden. */
 async function slaCvSkillsOp(cvData, authUserId, email) {
   try {
     const medewerkerId = await vindOfMaakMedewerker(authUserId, email);
-    const skillTeksten = verzamelSkillTeksten(cvData);
+    const verrijkeItems = verzamelVerrijkteSkills(cvData);
     let opgeslagen = 0;
     let escoGematcht = 0;
-    for (const tekst of skillTeksten) {
+
+    for (const { tekst, esco } of verrijkeItems) {
       const skillId = await vindOfMaakSkill(tekst);
       await koppelSkillAanMedewerker(medewerkerId, skillId);
-
-      // Elke skill krijgt een matchpoging met de officiële ESCO-database
-      const escoMatch = await vindEscoMatch(tekst);
-      if (escoMatch) {
-        await slaEscoMatchOp(skillId, escoMatch);
+      if (esco) {
+        await slaEscoMatchOp(skillId, esco);
         escoGematcht++;
       }
-
       opgeslagen++;
     }
+
+    // Weten/kunnen/zijn/willen worden ook opgeslagen, maar zonder ESCO-matching
+    // (dit zijn meer persoonlijke kenmerken dan concrete, matchbare vakskills)
+    for (const veld of ["weten", "kunnen", "zijn", "willen"]) {
+      for (const tekst of cvData[veld] || []) {
+        const skillId = await vindOfMaakSkill(tekst);
+        await koppelSkillAanMedewerker(medewerkerId, skillId);
+        opgeslagen++;
+      }
+    }
+
     return { success: true, aantalSkillsOpgeslagen: opgeslagen, aantalEscoGematcht: escoGematcht };
   } catch (error) {
     console.error("Fout bij opslaan CV-skills:", error);
     return { success: false, error: error.message };
   }
+}
+
+/** Verzamelt alle "verrijkte" {tekst, esco} items uit de functies en hobby's. */
+function verzamelVerrijkteSkills(cvData) {
+  const items = [];
+  (cvData.functies || []).forEach(functie => {
+    (functie.hardSkills || []).forEach(item => items.push(item));
+    (functie.softSkills || []).forEach(item => items.push(item));
+  });
+  (cvData.hobbySkills || []).forEach(item => items.push(item));
+  return items;
 }
 
 /** Slaat een gevonden ESCO-match op, gekoppeld aan de originele skill. */
@@ -68,18 +118,6 @@ async function vindOfMaakMedewerker(authUserId, email) {
   const { data: nieuwe, error } = await supabase.from("medewerkers").insert({ auth_user_id: authUserId, email }).select("id").single();
   if (error) throw error;
   return nieuwe.id;
-}
-
-function verzamelSkillTeksten(cvData) {
-  const teksten = [];
-  ["weten", "kunnen", "zijn", "willen"].forEach(veld => (cvData[veld] || []).forEach(item => teksten.push(item)));
-  (cvData.functies || []).forEach(functie => {
-    (functie.hardSkills || []).forEach(s => teksten.push(s));
-    (functie.softSkills || []).forEach(s => teksten.push(s));
-  });
-  // Hobby's/nevenactiviteiten leveren ook skills op — altijd meegenomen
-  (cvData.hobbySkills || []).forEach(s => teksten.push(s));
-  return [...new Set(teksten)];
 }
 
 async function vindOfMaakSkill(skillLabel) {
@@ -185,6 +223,25 @@ function Card({ children, style }) {
 
 function SectionTitle({ children }) {
   return <div style={{ fontFamily: "Georgia,serif", fontSize: 16, fontWeight: 600, color: "#1a1a2e", marginBottom: 14 }}>{children}</div>;
+}
+
+// ─── Toont een skill-pill met de gekoppelde ESCO-code (indien gevonden) ───────
+function EscoSkillPill({ item, bg, col }) {
+  const { tekst, esco } = typeof item === "string" ? { tekst: item, esco: null } : item;
+  const escoCode = esco?.uri?.split("/").pop(); // laatste stuk van de URI als korte code
+  return (
+    <span
+      title={esco ? `ESCO: ${esco.label}\nURI: ${esco.uri}\nZekerheid: ${Math.round((esco.confidence || 0) * 100)}%` : "Geen ESCO-match gevonden"}
+      style={{ fontSize: 12, padding: "4px 11px", borderRadius: 20, fontWeight: 500, background: bg, color: col, display: "inline-flex", alignItems: "center", gap: 5, cursor: esco ? "help" : "default" }}
+    >
+      {tekst}
+      {esco ? (
+        <span style={{ fontSize: 10, opacity: 0.75, fontFamily: "monospace" }}>🔗 {escoCode?.slice(0, 8)}</span>
+      ) : (
+        <span style={{ fontSize: 10, opacity: 0.5 }}>⚠️</span>
+      )}
+    </span>
+  );
 }
 
 // ─── Login / Registratie scherm ────────────────────────────────────────────
@@ -340,10 +397,21 @@ export default function App() {
       });
       const text = await callClaude([{ role: "user", content: [{ type: "document", source: { type: "base64", media_type: "application/pdf", data: base64 } }, { type: "text", text: CV_PROMPT }] }], 4000);
       const parsed = parseJSON(text);
+
+      // ESCO-matching gebeurt nu meteen, PARALLEL (dus sneller dan één voor één),
+      // en het resultaat wordt aan elke skill "vastgeplakt" zodat we het meteen
+      // kunnen tonen én later kunnen opslaan zonder alles opnieuw te hoeven matchen.
+      setCvStage("matching");
+      for (const functie of parsed.functies || []) {
+        functie.hardSkills = await verrijkMetEsco(functie.hardSkills || []);
+        functie.softSkills = await verrijkMetEsco(functie.softSkills || []);
+      }
+      parsed.hobbySkills = await verrijkMetEsco(parsed.hobbySkills || []);
+
       setCvData(parsed);
       setCvStage("result");
 
-      // Automatisch opslaan in SkillsPortaal, gekoppeld aan de ingelogde medewerker
+      // Automatisch opslaan in SkillsPortaal (hergebruikt de matches van hierboven, dus geen dubbel werk)
       setSaveStatus("opslaan...");
       const resultaat = await slaCvSkillsOp(parsed, sessie.user.id, sessie.user.email);
       setSaveStatus(resultaat.success ? "opgeslagen" : "fout");
@@ -486,6 +554,14 @@ export default function App() {
             </div>
           )}
 
+          {cvStage === "matching" && (
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 48, textAlign: "center", gap: 16 }}>
+              <Spinner />
+              <div style={{ fontFamily: "Georgia,serif", fontSize: 20, color: "#1a1a2e" }}>Skills worden gekoppeld aan ESCO…</div>
+              <div style={{ fontSize: 14, color: "#888", maxWidth: 340, lineHeight: 1.6 }}>Elke gevonden skill wordt vergeleken met de officiële ESCO-database, zodat je een traceerbaar skillsprofiel krijgt.</div>
+            </div>
+          )}
+
           {cvStage === "error" && (
             <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 48, textAlign: "center", gap: 16 }}>
               <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 12, padding: "18px 24px", color: "#991b1b", fontSize: 14, lineHeight: 1.6, maxWidth: 440 }}>⚠️ {cvError}</div>
@@ -532,7 +608,9 @@ export default function App() {
                         {[{ label: "Hard skills", key: "hardSkills", bg: "#eef2ff", col: "#3730a3" }, { label: "Soft skills", key: "softSkills", bg: "#fef3c7", col: "#92400e" }].map(({ label, key, bg, col }) => (
                           <div key={key}>
                             <div style={{ fontSize: 11, fontWeight: 600, color: "#888", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>{label}</div>
-                            <div>{(f[key] || []).map((s, j) => <span key={j} style={{ fontSize: 12, padding: "4px 11px", borderRadius: 20, fontWeight: 500, background: bg, color: col, display: "inline-block", margin: "0 4px 4px 0" }}>{s}</span>)}</div>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                              {(f[key] || []).map((item, j) => <EscoSkillPill key={j} item={item} bg={bg} col={col} />)}
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -590,7 +668,9 @@ export default function App() {
                       {(cvData.hobbySkills?.length > 0) && (
                         <>
                           <div style={{ fontSize: 11, fontWeight: 600, color: "#888", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>Skills die hieruit blijken</div>
-                          <div>{cvData.hobbySkills.map((s, i) => <span key={i} style={{ fontSize: 12, padding: "4px 11px", borderRadius: 20, fontWeight: 500, background: "#eef2ff", color: "#3730a3", display: "inline-block", margin: "0 4px 4px 0" }}>{s}</span>)}</div>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                            {cvData.hobbySkills.map((item, i) => <EscoSkillPill key={i} item={item} bg="#eef2ff" col="#3730a3" />)}
+                          </div>
                         </>
                       )}
                     </Card>
