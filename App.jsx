@@ -358,7 +358,7 @@ export default function App() {
         r.onerror = () => rej(new Error("Bestand kon niet worden gelezen."));
         r.readAsDataURL(file);
       });
-      const text = await callClaude([{ role: "user", content: [{ type: "document", source: { type: "base64", media_type: "application/pdf", data: base64 } }, { type: "text", text: CV_PROMPT }] }], 4000);
+      const text = await callClaude([{ role: "user", content: [{ type: "document", source: { type: "base64", media_type: "application/pdf", data: base64 } }, { type: "text", text: CV_PROMPT }] }], 6000);
       const parsed = parseJSON(text);
       setCvData(parsed);
       // standaard: alleen de meest recente (eerste) functie voorgeselecteerd
@@ -562,7 +562,7 @@ export default function App() {
             <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "32px 24px", gap: 48, flexWrap: "wrap" }}>
               <div style={{ maxWidth: 260, width: "100%" }}>
                 <SkillsModel />
-                <p style={{ fontSize: 13, color: "#666", textAlign: "center", marginTop: 16, lineHeight: 1.6 }}>De tool analyseert jouw CV op basis van dit model: wat je <strong>weet</strong>, wat je <strong>kunt</strong>, wie je <strong>bent</strong> en wat je <strong>wil</strong>.</p>
+                <p style={{ fontSize: 13, color: "#666", textAlign: "center", marginTop: 16, lineHeight: 1.6 }}>De tool analyseert jouw CV op basis van dit model: wat je <strong>weet</strong>, wat je <strong>kunt</strong>, wie je <strong>bent</strong> en wat je <strong>wil</strong> — en zo krijg je een skillsprofiel.</p>
               </div>
               <div style={{ maxWidth: 380, width: "100%" }}>
                 <div onClick={() => fileInputRef.current.click()} onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={e => { e.preventDefault(); setDragging(false); handleFile(e.dataTransfer.files[0]); }}
@@ -966,7 +966,7 @@ Retourneer ALLEEN een JSON-object (geen uitleg, geen markdown backticks) met EXA
 }
 
 Regels:
-- Haal ALLE functies op die je in het CV vindt (niet beperkt tot een aantal) — de gebruiker kiest zelf welke functies hij verder wil uitwerken.
+- Haal maximaal 8 functies op uit het CV (de meest recente/relevante als er meer zijn) — de gebruiker kiest zelf welke functies hij verder wil uitwerken.
 - Per functie: "taken" bevat 4-6 taken die letterlijk of licht herschreven uit het CV blijken (dit is de basis voor een latere, uitgebreidere taken-analyse — dus GEEN hardSkills/softSkills hier, die komen in een latere stap).
 - BELANGRIJK — wees zo specifiek/fijnmazig mogelijk: gebruik de meest precieze term die het CV noemt, niet een algemenere samenvatting. Voorbeeld: als het CV "MIG-lassen" noemt, schrijf dan "MIG-lassen" en niet het algemenere "lassen". Val alleen terug op een algemenere term als het CV zelf geen specifiekere aanduiding geeft.
 - "hobbySkills": leid concrete skills af uit de hobby's/nevenactiviteiten van deze persoon (bijv. vrijwilligerswerk als trainer → "coachen", "geduld hebben"). Dit is ALTIJD verplicht in te vullen als er hobby's/nevenactiviteiten gevonden zijn. Ook hier: wees zo specifiek mogelijk.
