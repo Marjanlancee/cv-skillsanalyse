@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 // ═══════════════════════════════════════════════════════════════
@@ -8,29 +8,64 @@ const SUPABASE_URL = "https://stzgxsgocqbuquzavgsu.supabase.co";
 const SUPABASE_KEY = "sb_publishable_JaDLY5jH7poc4oRjx_EoeQ_c2jyT39c";
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-/** Slaat de gevonden CV-skills op in de SkillsPortaal database. */
-async function slaCvSkillsOp(cvData, medewerkerEmail) {
-  if (!medewerkerEmail) return { success: false, error: "Geen e-mailadres opgegeven" };
+/** Zoekt de best passende ESCO-skill voor een stukje tekst, via het achterkamertje. */
+async function vindEscoMatch(skillLabel) {
   try {
-    const medewerkerId = await vindOfMaakMedewerker(medewerkerEmail);
+    const res = await fetch("/api/esco-match", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: skillLabel }),
+    });
+    const data = await res.json();
+    return data.match || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Slaat de gevonden CV-skills op in de SkillsPortaal database, gekoppeld aan de ingelogde medewerker. */
+async function slaCvSkillsOp(cvData, authUserId, email) {
+  try {
+    const medewerkerId = await vindOfMaakMedewerker(authUserId, email);
     const skillTeksten = verzamelSkillTeksten(cvData);
     let opgeslagen = 0;
+    let escoGematcht = 0;
     for (const tekst of skillTeksten) {
       const skillId = await vindOfMaakSkill(tekst);
       await koppelSkillAanMedewerker(medewerkerId, skillId);
+
+      // Elke skill krijgt een matchpoging met de officiële ESCO-database
+      const escoMatch = await vindEscoMatch(tekst);
+      if (escoMatch) {
+        await slaEscoMatchOp(skillId, escoMatch);
+        escoGematcht++;
+      }
+
       opgeslagen++;
     }
-    return { success: true, aantalSkillsOpgeslagen: opgeslagen };
+    return { success: true, aantalSkillsOpgeslagen: opgeslagen, aantalEscoGematcht: escoGematcht };
   } catch (error) {
     console.error("Fout bij opslaan CV-skills:", error);
     return { success: false, error: error.message };
   }
 }
 
-async function vindOfMaakMedewerker(email) {
-  const { data: bestaande } = await supabase.from("medewerkers").select("id").eq("email", email).maybeSingle();
+/** Slaat een gevonden ESCO-match op, gekoppeld aan de originele skill. */
+async function slaEscoMatchOp(skillId, escoMatch) {
+  const { error } = await supabase.from("skill_matches").insert({
+    skill_id: skillId,
+    esco_anker_code: escoMatch.uri,
+    match_type: "gerelateerd",
+    match_bron: "ai_suggestie",
+    confidence_score: escoMatch.confidence,
+  });
+  if (error) console.error("Fout bij opslaan ESCO-match:", error);
+}
+
+async function vindOfMaakMedewerker(authUserId, email) {
+  const { data: bestaande } = await supabase.from("medewerkers").select("id").eq("auth_user_id", authUserId).maybeSingle();
   if (bestaande) return bestaande.id;
-  const { data: nieuwe, error } = await supabase.from("medewerkers").insert({ email }).select("id").single();
+  const { data: nieuwe, error } = await supabase.from("medewerkers").insert({ auth_user_id: authUserId, email }).select("id").single();
   if (error) throw error;
   return nieuwe.id;
 }
@@ -42,6 +77,8 @@ function verzamelSkillTeksten(cvData) {
     (functie.hardSkills || []).forEach(s => teksten.push(s));
     (functie.softSkills || []).forEach(s => teksten.push(s));
   });
+  // Hobby's/nevenactiviteiten leveren ook skills op — altijd meegenomen
+  (cvData.hobbySkills || []).forEach(s => teksten.push(s));
   return [...new Set(teksten)];
 }
 
@@ -150,8 +187,102 @@ function SectionTitle({ children }) {
   return <div style={{ fontFamily: "Georgia,serif", fontSize: 16, fontWeight: 600, color: "#1a1a2e", marginBottom: 14 }}>{children}</div>;
 }
 
+// ─── Login / Registratie scherm ────────────────────────────────────────────
+function LoginScherm({ onIngelogd }) {
+  const [modus, setModus] = useState("inloggen"); // "inloggen" | "registreren"
+  const [email, setEmail] = useState("");
+  const [wachtwoord, setWachtwoord] = useState("");
+  const [bezig, setBezig] = useState(false);
+  const [foutmelding, setFoutmelding] = useState("");
+
+  async function versturen(e) {
+    e.preventDefault();
+    setBezig(true);
+    setFoutmelding("");
+    try {
+      if (modus === "registreren") {
+        const { data, error } = await supabase.auth.signUp({ email, password: wachtwoord });
+        if (error) throw error;
+        if (data.session) {
+          onIngelogd(data.session);
+        } else {
+          setFoutmelding("Account aangemaakt! Check je e-mail om te bevestigen, en log daarna in.");
+          setModus("inloggen");
+        }
+      } else {
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password: wachtwoord });
+        if (error) throw error;
+        onIngelogd(data.session);
+      }
+    } catch (err) {
+      setFoutmelding(err.message || "Er ging iets mis.");
+    }
+    setBezig(false);
+  }
+
+  return (
+    <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 32, minHeight: "70vh" }}>
+      <div style={{ background: "#fff", borderRadius: 20, border: "1px solid #e8e7e0", padding: "40px 36px", maxWidth: 400, width: "100%" }}>
+        <div style={{ fontFamily: "Georgia,serif", fontSize: 22, fontWeight: 600, color: "#1a1a2e", marginBottom: 6, textAlign: "center" }}>
+          {modus === "inloggen" ? "Inloggen" : "Account aanmaken"}
+        </div>
+        <p style={{ fontSize: 13, color: "#888", textAlign: "center", marginBottom: 24 }}>
+          Log in om je skillsprofiel te bewaren in SkillsPortaal.
+        </p>
+
+        <form onSubmit={versturen}>
+          <label style={{ fontSize: 13, color: "#555", display: "block", marginBottom: 6 }}>E-mailadres</label>
+          <input
+            type="email" required value={email} onChange={e => setEmail(e.target.value)}
+            placeholder="naam@bedrijf.nl"
+            style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #d0cfc8", fontSize: 14, fontFamily: "inherit", boxSizing: "border-box", marginBottom: 16 }}
+          />
+          <label style={{ fontSize: 13, color: "#555", display: "block", marginBottom: 6 }}>Wachtwoord</label>
+          <input
+            type="password" required value={wachtwoord} onChange={e => setWachtwoord(e.target.value)}
+            placeholder="Minimaal 6 tekens" minLength={6}
+            style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #d0cfc8", fontSize: 14, fontFamily: "inherit", boxSizing: "border-box", marginBottom: 16 }}
+          />
+
+          {foutmelding && (
+            <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "10px 14px", color: "#991b1b", fontSize: 13, marginBottom: 16, lineHeight: 1.5 }}>
+              ⚠️ {foutmelding}
+            </div>
+          )}
+
+          <button type="submit" disabled={bezig} style={{ width: "100%", padding: "12px 0", borderRadius: 10, background: "#1a1a2e", color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: bezig ? "default" : "pointer", fontFamily: "inherit" }}>
+            {bezig ? "Bezig…" : modus === "inloggen" ? "Inloggen" : "Account aanmaken"}
+          </button>
+        </form>
+
+        <div style={{ textAlign: "center", marginTop: 18 }}>
+          <button onClick={() => { setModus(modus === "inloggen" ? "registreren" : "inloggen"); setFoutmelding(""); }}
+            style={{ background: "none", border: "none", color: "#2a9d8f", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+            {modus === "inloggen" ? "Nog geen account? Registreer hier" : "Al een account? Log hier in"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Hoofd App ────────────────────────────────────────────────────────────────
 export default function App() {
+  // Login-status
+  const [sessie, setSessie] = useState(null);
+  const [sessieAanHetLaden, setSessieAanHetLaden] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSessie(data.session);
+      setSessieAanHetLaden(false);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, nieuweSessie) => {
+      setSessie(nieuweSessie);
+    });
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
   const [mainTab, setMainTab] = useState("cv");
 
   // CV state
@@ -162,10 +293,8 @@ export default function App() {
   const [dragging, setDragging] = useState(false);
   const [copied, setCopied] = useState(false);
   const fileInputRef = useRef();
-
-  // NIEUW: e-mailadres van de medewerker + opslaan-status
-  const [medewerkerEmail, setMedewerkerEmail] = useState("");
   const [saveStatus, setSaveStatus] = useState(null); // null | "opslaan..." | "opgeslagen" | "fout"
+  const [escoMatchCount, setEscoMatchCount] = useState(0);
 
   // Drijfveren state
   const [drijfStap, setDrijfStap] = useState(0);
@@ -214,12 +343,11 @@ export default function App() {
       setCvData(parsed);
       setCvStage("result");
 
-      // NIEUW: automatisch opslaan in SkillsPortaal, als er een e-mailadres is ingevuld
-      if (medewerkerEmail) {
-        setSaveStatus("opslaan...");
-        const resultaat = await slaCvSkillsOp(parsed, medewerkerEmail);
-        setSaveStatus(resultaat.success ? "opgeslagen" : "fout");
-      }
+      // Automatisch opslaan in SkillsPortaal, gekoppeld aan de ingelogde medewerker
+      setSaveStatus("opslaan...");
+      const resultaat = await slaCvSkillsOp(parsed, sessie.user.id, sessie.user.email);
+      setSaveStatus(resultaat.success ? "opgeslagen" : "fout");
+      setEscoMatchCount(resultaat.aantalEscoGematcht || 0);
     } catch (e) { setCvError(e.message); setCvStage("error"); }
   }
 
@@ -272,7 +400,32 @@ export default function App() {
   const alleBeantwoord = Object.keys(antwoorden).length === DRIJFVEER_VRAGEN.length;
   const heeftContext = cvData || drijfResultaat;
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // ── Nog aan het checken of iemand al ingelogd is? Even wachten ────────────
+  if (sessieAanHetLaden) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f5f4f0" }}>
+        <Spinner />
+      </div>
+    );
+  }
+
+  // ── Niet ingelogd? Toon login-scherm ──────────────────────────────────────
+  if (!sessie) {
+    return (
+      <div style={{ fontFamily: "'Segoe UI',sans-serif", minHeight: "100vh", background: "#f5f4f0", display: "flex", flexDirection: "column" }}>
+        <div style={{ background: "#1a1a2e", padding: "18px 32px", display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 10, background: "linear-gradient(135deg,#e8c547,#f0a500)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>📄</div>
+          <div>
+            <div style={{ fontFamily: "Georgia,serif", fontSize: 19, fontWeight: 700, color: "#fff" }}>CV Skills Extractor</div>
+            <div style={{ fontSize: 12, color: "#8a8aaa", marginTop: 1 }}>Weten · Kunnen · Zijn · Willen in kaart brengen</div>
+          </div>
+        </div>
+        <LoginScherm onIngelogd={setSessie} />
+      </div>
+    );
+  }
+
+  // ── Render (ingelogd) ──────────────────────────────────────────────────────
   return (
     <div style={{ fontFamily: "'Segoe UI',sans-serif", minHeight: "100vh", background: "#f5f4f0", display: "flex", flexDirection: "column" }}>
 
@@ -281,7 +434,11 @@ export default function App() {
         <div style={{ width: 40, height: 40, borderRadius: 10, background: "linear-gradient(135deg,#e8c547,#f0a500)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>📄</div>
         <div>
           <div style={{ fontFamily: "Georgia,serif", fontSize: 19, fontWeight: 700, color: "#fff" }}>CV Skills Extractor</div>
-          <div style={{ fontSize: 12, color: "#8a8aaa", marginTop: 1 }}>Weten · Kunnen · Zijn · Willen — powered by Claude AI</div>
+          <div style={{ fontSize: 12, color: "#8a8aaa", marginTop: 1 }}>Weten · Kunnen · Zijn · Willen in kaart brengen</div>
+        </div>
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14 }}>
+          <span style={{ fontSize: 12, color: "#8a8aaa" }}>{sessie.user.email}</span>
+          <button onClick={() => supabase.auth.signOut()} style={{ fontSize: 12, color: "#e8c547", background: "none", border: "1px solid #e8c547", borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontFamily: "inherit" }}>Uitloggen</button>
         </div>
       </div>
 
@@ -300,7 +457,6 @@ export default function App() {
 
           {cvStage === "upload" && (
             <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "32px 24px", gap: 48, flexWrap: "wrap" }}>
-              {/* Skills model links */}
               <div style={{ maxWidth: 260, width: "100%" }}>
                 <SkillsModel />
                 <p style={{ fontSize: 13, color: "#666", textAlign: "center", marginTop: 16, lineHeight: 1.6 }}>
@@ -308,26 +464,13 @@ export default function App() {
                 </p>
               </div>
 
-              {/* Upload card rechts */}
               <div style={{ maxWidth: 380, width: "100%" }}>
-                {/* NIEUW: e-mailveld, zodat we weten voor wie we opslaan */}
-                <div style={{ marginBottom: 14 }}>
-                  <label style={{ fontSize: 13, color: "#555", display: "block", marginBottom: 6 }}>Jouw e-mailadres (voor je SkillsPortaal-profiel)</label>
-                  <input
-                    type="email"
-                    value={medewerkerEmail}
-                    onChange={e => setMedewerkerEmail(e.target.value)}
-                    placeholder="naam@bedrijf.nl"
-                    style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #d0cfc8", fontSize: 14, fontFamily: "inherit", boxSizing: "border-box" }}
-                  />
-                </div>
-
                 <div onClick={() => fileInputRef.current.click()} onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={e => { e.preventDefault(); setDragging(false); handleFile(e.dataTransfer.files[0]); }}
                   style={{ background: dragging ? "#fffef5" : "#fff", borderRadius: 20, border: `2px dashed ${dragging ? "#e8c547" : "#d0cfc8"}`, padding: "44px 36px", textAlign: "center", cursor: "pointer" }}>
                   <div style={{ fontSize: 48 }}>📋</div>
                   <div style={{ fontFamily: "Georgia,serif", fontSize: 21, color: "#1a1a2e", margin: "14px 0 8px" }}>Upload je CV</div>
                   <div style={{ fontSize: 14, color: "#888", lineHeight: 1.6, marginBottom: 8 }}>Sleep een PDF hierheen of klik om te bladeren.</div>
-                  <div style={{ fontSize: 12, color: "#aaa", lineHeight: 1.5, marginBottom: 20 }}>De AI analyseert je functies, extraheert skills op het Weten·Kunnen·Zijn·Willen-model en schrijft je persoonlijke verhaal.</div>
+                  <div style={{ fontSize: 12, color: "#aaa", lineHeight: 1.5, marginBottom: 20 }}>Je functies, skills en hobby's worden geanalyseerd op het Weten·Kunnen·Zijn·Willen-model en gekoppeld aan jouw SkillsPortaal-profiel.</div>
                   <input type="file" ref={fileInputRef} accept="application/pdf" style={{ display: "none" }} onChange={e => handleFile(e.target.files[0])} />
                   <button style={{ padding: "12px 28px", borderRadius: 10, background: "#1a1a2e", color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>📁 Kies PDF-bestand</button>
                 </div>
@@ -339,7 +482,7 @@ export default function App() {
             <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 48, textAlign: "center", gap: 16 }}>
               <Spinner />
               <div style={{ fontFamily: "Georgia,serif", fontSize: 20, color: "#1a1a2e" }}>CV wordt geanalyseerd…</div>
-              <div style={{ fontSize: 14, color: "#888", maxWidth: 320, lineHeight: 1.6 }}>Claude leest je werkervaring en brengt je Weten, Kunnen, Zijn en Willen in kaart.</div>
+              <div style={{ fontSize: 14, color: "#888", maxWidth: 320, lineHeight: 1.6 }}>Je werkervaring wordt gelezen en je Weten, Kunnen, Zijn en Willen worden in kaart gebracht.</div>
             </div>
           )}
 
@@ -358,11 +501,10 @@ export default function App() {
                     {t.label}
                   </button>
                 ))}
-                {/* NIEUW: opslaan-status zichtbaar maken */}
                 {saveStatus && (
                   <span style={{ marginLeft: 16, fontSize: 12, color: saveStatus === "opgeslagen" ? "#166534" : saveStatus === "fout" ? "#991b1b" : "#888" }}>
                     {saveStatus === "opslaan..." && "⏳ Opslaan in SkillsPortaal…"}
-                    {saveStatus === "opgeslagen" && "✅ Opgeslagen in SkillsPortaal"}
+                    {saveStatus === "opgeslagen" && `✅ Opgeslagen in SkillsPortaal${escoMatchCount ? ` (${escoMatchCount} ESCO-skills gekoppeld)` : ""}`}
                     {saveStatus === "fout" && "⚠️ Opslaan mislukt"}
                   </span>
                 )}
@@ -444,7 +586,13 @@ export default function App() {
                     <Card>
                       <SectionTitle>🎨 Hobby's & interesses</SectionTitle>
                       {!(cvData.hobbies?.length) && <p style={{ fontSize: 13, color: "#888" }}>Geen hobby's gevonden in het CV.</p>}
-                      <div>{(cvData.hobbies || []).map((h, i) => <span key={i} style={{ fontSize: 13, padding: "7px 16px", borderRadius: 20, background: "#f5f4f0", color: "#444", border: "1px solid #e0dfd8", fontWeight: 500, display: "inline-block", margin: "0 6px 6px 0" }}>{h}</span>)}</div>
+                      <div style={{ marginBottom: 14 }}>{(cvData.hobbies || []).map((h, i) => <span key={i} style={{ fontSize: 13, padding: "7px 16px", borderRadius: 20, background: "#f5f4f0", color: "#444", border: "1px solid #e0dfd8", fontWeight: 500, display: "inline-block", margin: "0 6px 6px 0" }}>{h}</span>)}</div>
+                      {(cvData.hobbySkills?.length > 0) && (
+                        <>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: "#888", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>Skills die hieruit blijken</div>
+                          <div>{cvData.hobbySkills.map((s, i) => <span key={i} style={{ fontSize: 12, padding: "4px 11px", borderRadius: 20, fontWeight: 500, background: "#eef2ff", color: "#3730a3", display: "inline-block", margin: "0 4px 4px 0" }}>{s}</span>)}</div>
+                        </>
+                      )}
                     </Card>
                   </div>
                 )}
@@ -546,7 +694,7 @@ export default function App() {
             <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 48, textAlign: "center", gap: 16 }}>
               <Spinner />
               <div style={{ fontFamily: "Georgia,serif", fontSize: 20, color: "#1a1a2e" }}>Jouw drijfveren worden in kaart gebracht…</div>
-              <div style={{ fontSize: 14, color: "#888" }}>Claude analyseert je antwoorden en schrijft een persoonlijk profiel.</div>
+              <div style={{ fontSize: 14, color: "#888" }}>Je antwoorden worden geanalyseerd en er wordt een persoonlijk profiel geschreven.</div>
             </div>
           )}
 
@@ -670,7 +818,7 @@ export default function App() {
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 0", gap: 16, textAlign: "center" }}>
                 <Spinner />
                 <div style={{ fontFamily: "Georgia,serif", fontSize: 18, color: "#1a1a2e" }}>Ontwikkeladvies wordt opgesteld…</div>
-                <div style={{ fontSize: 13, color: "#888" }}>Claude combineert jouw doel, CV en drijfveren tot een persoonlijk plan.</div>
+                <div style={{ fontSize: 13, color: "#888" }}>Jouw doel, CV en drijfveren worden gecombineerd tot een persoonlijk plan.</div>
               </div>
             )}
 
@@ -744,11 +892,18 @@ Retourneer ALLEEN een JSON-object (geen uitleg, geen markdown backticks) met EXA
   "ontwikkeltip": "",
   "opleidingen": [{"naam":"","instelling":"","jaar":""}],
   "hobbies": [""],
+  "hobbySkills": ["","",""],
   "verhaal": {"alinea1":"","alinea2":"","alinea3":""},
   "top5": [{"skill":"","toelichting":""}]
 }
 
-Regels: alleen 3 meest recente functies, exact 4 taken/hardSkills/softSkills per functie, top5 heeft precies 5 items, verhaal in ik-vorm authentiek en krachtig, ontbrekende info = lege array [], UITSLUITEND het JSON-object retourneren.`;
+Regels:
+- Alleen 3 meest recente functies, exact 4 taken/hardSkills/softSkills per functie
+- "hobbySkills": leid concrete skills af uit de hobby's/nevenactiviteiten van deze persoon (bijv. vrijwilligerswerk als trainer → "coachen", "geduld hebben"). Dit is ALTIJD verplicht in te vullen als er hobby's/nevenactiviteiten gevonden zijn, ongeacht hoeveel werkervaring er is.
+- top5 heeft precies 5 items
+- verhaal in ik-vorm authentiek en krachtig
+- ontbrekende info = lege array []
+- UITSLUITEND het JSON-object retourneren`;
 
 function drijfverenPrompt(scores, top3) {
   const labels = Object.entries(scores).map(([k, v]) => `${DRIJFVEER_TYPES[k].label}: ${v}/5`).join(", ");
