@@ -155,9 +155,9 @@ const MAIN_TABS = [
 ];
 
 const RESULT_TABS = [
+  { id: "profiel", label: "🧬 Skillsprofiel" },
   { id: "functies", label: "💼 Functies & Skills" },
   { id: "wksw", label: "🧠 Weten · Kunnen · Zijn · Willen" },
-  { id: "meer", label: "🎓 Meer over jou" },
 ];
 
 function SkillsModel() {
@@ -213,17 +213,20 @@ function EscoSkillPill({ item, bg, col }) {
   );
 }
 
-// ─── Mini-schaal 1-5 met altijd zichtbaar label ────────────────────────────────
+// ─── Niveau-balk 1-5 met altijd zichtbare labels ───────────────────────────────
 function MiniSchaal({ label, labels, waarde, onChange }) {
   return (
-    <div style={{ marginBottom: 6 }}>
-      <div style={{ fontSize: 11, color: "#888", marginBottom: 3 }}>{label}: <strong style={{ color: "#1a1a2e" }}>{labels[waarde - 1]}</strong></div>
-      <div style={{ display: "flex", gap: 4 }}>
-        {[1, 2, 3, 4, 5].map(n => (
-          <button key={n} onClick={() => onChange(n)} title={labels[n - 1]}
-            style={{ width: 26, height: 22, borderRadius: 6, fontSize: 10, fontWeight: 600, cursor: "pointer", border: n === waarde ? "2px solid #1a1a2e" : "1px solid #d0cfc8", background: n <= waarde ? "#e8c547" : "#fff", color: n <= waarde ? "#1a1a2e" : "#aaa" }}>
-            {n}
-          </button>
+    <div style={{ minWidth: 260 }}>
+      <div style={{ fontSize: 11, color: "#888", marginBottom: 4 }}>{label}: <strong style={{ color: "#1a1a2e" }}>{labels[waarde - 1]}</strong></div>
+      <div style={{ display: "flex", gap: 2, borderRadius: 8, overflow: "hidden", height: 20 }}>
+        {labels.map((l, i) => (
+          <div key={l} onClick={() => onChange(i + 1)} title={l}
+            style={{ flex: 1, cursor: "pointer", background: i < waarde ? "#e8c547" : "#e8e7e0" }} />
+        ))}
+      </div>
+      <div style={{ display: "flex", marginTop: 3 }}>
+        {labels.map((l, i) => (
+          <span key={l} style={{ flex: 1, fontSize: 9, textAlign: i === 0 ? "left" : i === labels.length - 1 ? "right" : "center", fontWeight: i === waarde - 1 ? 700 : 400, color: i === waarde - 1 ? "#1a1a2e" : "#aaa" }}>{l}</span>
         ))}
       </div>
     </div>
@@ -304,7 +307,7 @@ export default function App() {
   const [mainTab, setMainTab] = useState("cv");
 
   const [cvStage, setCvStage] = useState("upload");
-  const [activeResultTab, setActiveResultTab] = useState("functies");
+  const [activeResultTab, setActiveResultTab] = useState("profiel");
   const [cvData, setCvData] = useState(null);
   const [cvError, setCvError] = useState("");
   const [dragging, setDragging] = useState(false);
@@ -659,10 +662,117 @@ export default function App() {
 
               <div style={{ flex: 1, padding: "28px 32px", overflowY: "auto" }}>
 
+                {/* Mijn Skillsprofiel — het complete overzicht */}
+                {activeResultTab === "profiel" && (() => {
+                  const hardMap = new Map(), softMap = new Map();
+                  Object.values(functieSkills).forEach(taken => taken.forEach(t => {
+                    t.hardskills.forEach(s => hardMap.set(s.tekst, s));
+                    t.softskills.forEach(s => softMap.set(s.tekst, s));
+                  }));
+                  const hardList = [...hardMap.values()];
+                  const softList = [...softMap.values()];
+                  const hobbyList = cvData.hobbySkills || [];
+                  const totaal = hardList.length + softList.length + hobbyList.length;
+
+                  return (
+                    <div style={{ maxWidth: 700 }}>
+                      <div style={{ fontFamily: "Georgia,serif", fontSize: 22, fontWeight: 600, color: "#1a1a2e", marginBottom: 6 }}>Jouw complete skillsprofiel</div>
+                      <p style={{ fontSize: 13, color: "#666", marginBottom: 18 }}>{totaal} skills gevonden, elk gekoppeld aan de officiële ESCO-database en voorzien van jouw eigen niveau.</p>
+                      <SkillsLegenda />
+
+                      {hardList.length > 0 && (
+                        <Card style={{ marginBottom: 16 }}>
+                          <SectionTitle>🔧 Hardskills ({hardList.length})</SectionTitle>
+                          {hardList.map(item => (
+                            <div key={item.tekst} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: "1px solid #f0efe8" }}>
+                              <div style={{ marginBottom: 8 }}><EscoSkillPill item={item} bg="#eef2ff" col="#3730a3" /></div>
+                              <MiniSchaal label="Niveau" labels={NIVEAUS} waarde={beoordelingen[item.tekst] || 3} onChange={v => wijzigBeoordeling(item.tekst, v)} />
+                            </div>
+                          ))}
+                        </Card>
+                      )}
+
+                      {softList.length > 0 && (
+                        <Card style={{ marginBottom: 16 }}>
+                          <SectionTitle>💬 Softskills ({softList.length})</SectionTitle>
+                          {softList.map(item => (
+                            <div key={item.tekst} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: "1px solid #f0efe8" }}>
+                              <div style={{ marginBottom: 8 }}><EscoSkillPill item={item} bg="#fef3c7" col="#92400e" /></div>
+                              <MiniSchaal label="Niveau" labels={NIVEAUS} waarde={beoordelingen[item.tekst] || 3} onChange={v => wijzigBeoordeling(item.tekst, v)} />
+                            </div>
+                          ))}
+                        </Card>
+                      )}
+
+                      {hobbyList.length > 0 && (
+                        <Card style={{ marginBottom: 16 }}>
+                          <SectionTitle>🎨 Skills uit hobby's & nevenactiviteiten ({hobbyList.length})</SectionTitle>
+                          {hobbyList.map(item => (
+                            <div key={item.tekst} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: "1px solid #f0efe8" }}>
+                              <div style={{ marginBottom: 8 }}><EscoSkillPill item={item} bg="#eef2ff" col="#3730a3" /></div>
+                              <MiniSchaal label="Niveau" labels={NIVEAUS} waarde={beoordelingen[item.tekst] || 3} onChange={v => wijzigBeoordeling(item.tekst, v)} />
+                            </div>
+                          ))}
+                        </Card>
+                      )}
+
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 24 }}>
+                        <Card>
+                          <SectionTitle>🎓 Opleidingen & cursussen</SectionTitle>
+                          {!(cvData.opleidingen?.length) && <p style={{ fontSize: 13, color: "#888" }}>Geen opleidingsgegevens gevonden.</p>}
+                          {(cvData.opleidingen || []).map((o, i) => (<div key={i} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: i < cvData.opleidingen.length - 1 ? "1px solid #f0efe8" : "none" }}><div style={{ fontSize: 14, fontWeight: 500, color: "#1a1a2e" }}>{o.naam}</div><div style={{ fontSize: 12, color: "#888", marginTop: 2 }}>{[o.instelling, o.jaar].filter(Boolean).join(" · ")}</div></div>))}
+                        </Card>
+                        <Card>
+                          <SectionTitle>🎨 Hobby's & interesses</SectionTitle>
+                          {!(cvData.hobbies?.length) && <p style={{ fontSize: 13, color: "#888" }}>Geen hobby's gevonden in het CV.</p>}
+                          <div>{(cvData.hobbies || []).map((h, i) => <span key={i} style={{ fontSize: 13, padding: "7px 16px", borderRadius: 20, background: "#f5f4f0", color: "#444", border: "1px solid #e0dfd8", fontWeight: 500, display: "inline-block", margin: "0 6px 6px 0" }}>{h}</span>)}</div>
+                        </Card>
+                      </div>
+
+                      <div style={{ fontFamily: "Georgia,serif", fontSize: 21, fontWeight: 600, color: "#1a1a2e", marginBottom: 14 }}>✨ Jouw verhaal</div>
+
+                      {!cvData.verhaal && !verhaalLoading && (
+                        <Card>
+                          <p style={{ fontSize: 13, color: "#666", lineHeight: 1.7, marginBottom: 16 }}>
+                            Je persoonlijke verhaal combineert je skillsprofiel met (indien beschikbaar) je Drijfveren Test en je Ontwikkeladvies. Hoe meer je hebt ingevuld, hoe rijker het verhaal.
+                          </p>
+                          <div style={{ display: "flex", gap: 16, marginBottom: 18, flexWrap: "wrap" }}>
+                            <span style={{ fontSize: 12, color: "#166534" }}>✅ CV-skills</span>
+                            <span style={{ fontSize: 12, color: drijfResultaat ? "#166534" : "#aaa" }}>{drijfResultaat ? "✅" : "⬜"} Drijfveren Test</span>
+                            <span style={{ fontSize: 12, color: ontwikkelAdvies ? "#166534" : "#aaa" }}>{ontwikkelAdvies ? "✅" : "⬜"} Ontwikkeladvies</span>
+                          </div>
+                          {verhaalError && <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "10px 14px", color: "#991b1b", fontSize: 13, marginBottom: 14 }}>⚠️ {verhaalError}</div>}
+                          <button onClick={genereerVerhaalEnTop5} style={{ padding: "12px 26px", borderRadius: 10, background: "#1a1a2e", color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Genereer mijn verhaal en top 5 →</button>
+                        </Card>
+                      )}
+
+                      {verhaalLoading && (<div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 0", gap: 16, textAlign: "center" }}><Spinner /><div style={{ fontFamily: "Georgia,serif", fontSize: 18, color: "#1a1a2e" }}>Jouw verhaal wordt geschreven…</div></div>)}
+
+                      {cvData.verhaal && !verhaalLoading && (
+                        <>
+                          {cvData.verhaalBronnen && <p style={{ fontSize: 12, color: "#888", fontStyle: "italic", marginBottom: 16 }}>{cvData.verhaalBronnen}</p>}
+                          {(cvData.top5?.length > 0) && (
+                            <div style={{ background: "#1a1a2e", borderRadius: 16, padding: 26, marginBottom: 22 }}>
+                              <div style={{ fontFamily: "Georgia,serif", fontSize: 18, fontWeight: 600, color: "#e8c547", marginBottom: 18 }}>⭐ Jouw top 5 skills</div>
+                              {cvData.top5.map((item, i) => (<div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 14 }}><div style={{ width: 28, height: 28, borderRadius: 7, background: "rgba(232,197,71,0.2)", color: "#e8c547", fontWeight: 600, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{i + 1}</div><div style={{ fontSize: 14, color: "#ddd", lineHeight: 1.6 }}><span style={{ fontWeight: 600, color: "#fff" }}>{item.skill}</span> — {item.toelichting}</div></div>))}
+                            </div>
+                          )}
+                          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+                            <button onClick={copyStory} style={{ padding: "9px 18px", borderRadius: 10, background: copied ? "#166534" : "#1a1a2e", color: "#fff", border: "none", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>{copied ? "✓ Gekopieerd!" : "📋 Kopieer verhaal"}</button>
+                          </div>
+                          <Card>{[cvData.verhaal?.alinea1, cvData.verhaal?.alinea2, cvData.verhaal?.alinea3].filter(Boolean).map((p, i, arr) => (<p key={i} style={{ fontSize: 15, color: "#333", lineHeight: 1.85, marginBottom: i < arr.length - 1 ? 18 : 0 }}>{p}</p>))}</Card>
+                          <button onClick={genereerVerhaalEnTop5} style={{ marginTop: 14, padding: "9px 18px", borderRadius: 10, background: "#f5f4f0", color: "#444", border: "1px solid #d0cfc8", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>↻ Opnieuw genereren</button>
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 {/* Functies & Skills */}
                 {activeResultTab === "functies" && (
                   <>
                     <SkillsLegenda />
+                    <p style={{ fontSize: 12, color: "#888", marginBottom: 16, marginTop: -10 }}>Klik per skill op de balk om aan te geven hoe goed je 'm beheerst — dit helpt bij een eerlijk skillsprofiel.</p>
                     {[...geselecteerdeFuncties].map(idx => {
                       const f = cvData.functies[idx];
                       const taken = functieSkills[idx] || [];
@@ -719,60 +829,6 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Meer over jou: Opleiding & Hobby's + Verhaal & Top5 */}
-                {activeResultTab === "meer" && (
-                  <div style={{ maxWidth: 700 }}>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 24 }}>
-                      <Card>
-                        <SectionTitle>🎓 Opleidingen & cursussen</SectionTitle>
-                        {!(cvData.opleidingen?.length) && <p style={{ fontSize: 13, color: "#888" }}>Geen opleidingsgegevens gevonden.</p>}
-                        {(cvData.opleidingen || []).map((o, i) => (<div key={i} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: i < cvData.opleidingen.length - 1 ? "1px solid #f0efe8" : "none" }}><div style={{ fontSize: 14, fontWeight: 500, color: "#1a1a2e" }}>{o.naam}</div><div style={{ fontSize: 12, color: "#888", marginTop: 2 }}>{[o.instelling, o.jaar].filter(Boolean).join(" · ")}</div></div>))}
-                      </Card>
-                      <Card>
-                        <SectionTitle>🎨 Hobby's & interesses</SectionTitle>
-                        {!(cvData.hobbies?.length) && <p style={{ fontSize: 13, color: "#888" }}>Geen hobby's gevonden in het CV.</p>}
-                        <div style={{ marginBottom: 14 }}>{(cvData.hobbies || []).map((h, i) => <span key={i} style={{ fontSize: 13, padding: "7px 16px", borderRadius: 20, background: "#f5f4f0", color: "#444", border: "1px solid #e0dfd8", fontWeight: 500, display: "inline-block", margin: "0 6px 6px 0" }}>{h}</span>)}</div>
-                        {(cvData.hobbySkills?.length > 0) && (<><div style={{ fontSize: 11, fontWeight: 600, color: "#888", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>Skills die hieruit blijken</div><div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{cvData.hobbySkills.map((item, i) => <EscoSkillPill key={i} item={item} bg="#eef2ff" col="#3730a3" />)}</div></>)}
-                      </Card>
-                    </div>
-
-                    <div style={{ fontFamily: "Georgia,serif", fontSize: 21, fontWeight: 600, color: "#1a1a2e", marginBottom: 14 }}>✨ Jouw verhaal</div>
-
-                    {!cvData.verhaal && !verhaalLoading && (
-                      <Card>
-                        <p style={{ fontSize: 13, color: "#666", lineHeight: 1.7, marginBottom: 16 }}>
-                          Je persoonlijke verhaal combineert je skillsprofiel met (indien beschikbaar) je Drijfveren Test en je Ontwikkeladvies. Hoe meer je hebt ingevuld, hoe rijker het verhaal.
-                        </p>
-                        <div style={{ display: "flex", gap: 16, marginBottom: 18, flexWrap: "wrap" }}>
-                          <span style={{ fontSize: 12, color: "#166534" }}>✅ CV-skills</span>
-                          <span style={{ fontSize: 12, color: drijfResultaat ? "#166534" : "#aaa" }}>{drijfResultaat ? "✅" : "⬜"} Drijfveren Test</span>
-                          <span style={{ fontSize: 12, color: ontwikkelAdvies ? "#166534" : "#aaa" }}>{ontwikkelAdvies ? "✅" : "⬜"} Ontwikkeladvies</span>
-                        </div>
-                        {verhaalError && <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "10px 14px", color: "#991b1b", fontSize: 13, marginBottom: 14 }}>⚠️ {verhaalError}</div>}
-                        <button onClick={genereerVerhaalEnTop5} style={{ padding: "12px 26px", borderRadius: 10, background: "#1a1a2e", color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Genereer mijn verhaal en top 5 →</button>
-                      </Card>
-                    )}
-
-                    {verhaalLoading && (<div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 0", gap: 16, textAlign: "center" }}><Spinner /><div style={{ fontFamily: "Georgia,serif", fontSize: 18, color: "#1a1a2e" }}>Jouw verhaal wordt geschreven…</div></div>)}
-
-                    {cvData.verhaal && !verhaalLoading && (
-                      <>
-                        {cvData.verhaalBronnen && <p style={{ fontSize: 12, color: "#888", fontStyle: "italic", marginBottom: 16 }}>{cvData.verhaalBronnen}</p>}
-                        {(cvData.top5?.length > 0) && (
-                          <div style={{ background: "#1a1a2e", borderRadius: 16, padding: 26, marginBottom: 22 }}>
-                            <div style={{ fontFamily: "Georgia,serif", fontSize: 18, fontWeight: 600, color: "#e8c547", marginBottom: 18 }}>⭐ Jouw top 5 skills</div>
-                            {cvData.top5.map((item, i) => (<div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 14 }}><div style={{ width: 28, height: 28, borderRadius: 7, background: "rgba(232,197,71,0.2)", color: "#e8c547", fontWeight: 600, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{i + 1}</div><div style={{ fontSize: 14, color: "#ddd", lineHeight: 1.6 }}><span style={{ fontWeight: 600, color: "#fff" }}>{item.skill}</span> — {item.toelichting}</div></div>))}
-                          </div>
-                        )}
-                        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
-                          <button onClick={copyStory} style={{ padding: "9px 18px", borderRadius: 10, background: copied ? "#166534" : "#1a1a2e", color: "#fff", border: "none", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>{copied ? "✓ Gekopieerd!" : "📋 Kopieer verhaal"}</button>
-                        </div>
-                        <Card>{[cvData.verhaal?.alinea1, cvData.verhaal?.alinea2, cvData.verhaal?.alinea3].filter(Boolean).map((p, i, arr) => (<p key={i} style={{ fontSize: 15, color: "#333", lineHeight: 1.85, marginBottom: i < arr.length - 1 ? 18 : 0 }}>{p}</p>))}</Card>
-                        <button onClick={genereerVerhaalEnTop5} style={{ marginTop: 14, padding: "9px 18px", borderRadius: 10, background: "#f5f4f0", color: "#444", border: "1px solid #d0cfc8", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>↻ Opnieuw genereren</button>
-                      </>
-                    )}
-                  </div>
-                )}
               </div>
             </div>
           )}
