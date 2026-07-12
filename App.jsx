@@ -51,7 +51,7 @@ async function slaCvSkillsOp(functieSkills, hobbySkills, beoordelingen, authUser
     let opgeslagen = 0, escoGematcht = 0;
     for (const [tekst, item] of uniek) {
       const skillId = await vindOfMaakSkill(tekst);
-      const goed = beoordelingen[tekst]?.goed || 3;
+      const goed = beoordelingen[tekst] || 3;
       await koppelSkillAanMedewerker(medewerkerId, skillId, NIVEAUS[goed - 1]);
       if (item.esco) { await slaEscoMatchOp(skillId, item.esco); escoGematcht++; }
       opgeslagen++;
@@ -230,15 +230,12 @@ function MiniSchaal({ label, labels, waarde, onChange }) {
   );
 }
 
-// ─── Beoordelingsrij: hoe goed + hoe leuk, per skill ────────────────────────────
+// ─── Beoordelingsrij: hoe goed beheers je deze skill ────────────────────────────
 function BeoordelingRij({ tekst, waarde, onChange }) {
-  const goed = waarde?.goed || 3;
-  const leuk = waarde?.leuk || 3;
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "10px 12px", background: "#fafaf8", borderRadius: 10, border: "1px solid #eeede8", marginBottom: 6, flexWrap: "wrap" }}>
-      <div style={{ fontSize: 13, color: "#333", fontWeight: 500, minWidth: 150, flex: "1 1 150px" }}>{tekst}</div>
-      <MiniSchaal label="Hoe goed kun je dit" labels={NIVEAUS} waarde={goed} onChange={v => onChange(tekst, "goed", v)} />
-      <MiniSchaal label="Hoe leuk vind je dit" labels={LEUK_LABELS} waarde={leuk} onChange={v => onChange(tekst, "leuk", v)} />
+    <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "8px 12px", background: "#fafaf8", borderRadius: 10, border: "1px solid #eeede8", marginBottom: 6, flexWrap: "wrap" }}>
+      <div style={{ fontSize: 12, color: "#333", minWidth: 130, flex: "1 1 130px" }}>{tekst}</div>
+      <MiniSchaal label="Hoe beheers je deze skill" labels={NIVEAUS} waarde={waarde || 3} onChange={v => onChange(tekst, v)} />
     </div>
   );
 }
@@ -428,7 +425,7 @@ export default function App() {
       const hobbyVerrijkt = (cvData.hobbySkills || []).map(s => ({ tekst: s, esco: matchMap[s] }));
 
       const beoordelingInit = {};
-      tekstenArr.forEach(t => { beoordelingInit[t] = { goed: 3, leuk: 3 }; });
+      tekstenArr.forEach(t => { beoordelingInit[t] = 3; });
 
       setFunctieSkills(verrijkt);
       setCvData(prev => ({ ...prev, hobbySkills: hobbyVerrijkt }));
@@ -442,8 +439,8 @@ export default function App() {
     } catch (e) { setCvError(e.message); setCvStage("error"); }
   }
 
-  function wijzigBeoordeling(tekst, dimensie, waarde) {
-    setBeoordelingen(prev => ({ ...prev, [tekst]: { ...prev[tekst], [dimensie]: waarde } }));
+  function wijzigBeoordeling(tekst, waarde) {
+    setBeoordelingen(prev => ({ ...prev, [tekst]: waarde }));
   }
 
   function nieuwCv() {
@@ -463,14 +460,13 @@ export default function App() {
       const skillsMetNiveau = [];
       Object.values(functieSkills).forEach(taken => taken.forEach(t => {
         [...t.hardskills, ...t.softskills].forEach(s => {
-          const b = beoordelingen[s.tekst];
-          skillsMetNiveau.push({ skill: s.tekst, niveau: b ? NIVEAUS[b.goed - 1] : "Gemiddeld", leuk: b ? LEUK_LABELS[b.leuk - 1] : "Gemiddeld" });
+          skillsMetNiveau.push({ skill: s.tekst, niveau: NIVEAUS[(beoordelingen[s.tekst] || 3) - 1] });
         });
       }));
       const drijfSamenvatting = drijfResultaat ? Object.entries(drijfResultaat.scores).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k]) => DRIJFVEER_TYPES[k].label).join(", ") : null;
       const ontwikkelSamenvatting = ontwikkelAdvies ? `${ontwikkelDoel} → richting: ${ontwikkelAdvies.richting}` : null;
 
-      const text = await callClaude([{ role: "user", content: verhaalTop5Prompt(cvData, skillsMetNiveau, drijfSamenvatting, ontwikkelSamenvatting) }], 1500);
+      const text = await callClaude([{ role: "user", content: verhaalTop5Prompt(cvData, skillsMetNiveau, drijfSamenvatting, ontwikkelSamenvatting) }], 2200);
       const data = parseJSON(text);
       setCvData(prev => ({ ...prev, verhaal: data.verhaal, top5: data.top5, verhaalBronnen: data.bronnenGebruikt }));
     } catch (e) { setVerhaalError(e.message || "Er is iets misgegaan."); }
@@ -670,7 +666,6 @@ export default function App() {
                     {[...geselecteerdeFuncties].map(idx => {
                       const f = cvData.functies[idx];
                       const taken = functieSkills[idx] || [];
-                      const uniekeSkillsFunctie = [...new Set(taken.flatMap(t => [...t.hardskills, ...t.softskills].map(s => s.tekst)))];
                       return (
                         <div key={idx} style={{ background: "#fff", borderRadius: 16, border: "1px solid #e8e7e0", marginBottom: 20, overflow: "hidden" }}>
                           <div style={{ background: "#1a1a2e", padding: "16px 22px" }}>
@@ -679,21 +674,19 @@ export default function App() {
                           </div>
                           <div style={{ padding: "18px 22px" }}>
                             {taken.length === 0 && <p style={{ fontSize: 13, color: "#888" }}>Geen taken geselecteerd voor deze functie.</p>}
-                            {taken.map((t, j) => (
-                              <div key={j} style={{ marginBottom: 16, paddingBottom: 16, borderBottom: j < taken.length - 1 ? "1px solid #f0efe8" : "none" }}>
-                                <div style={{ fontSize: 13, color: "#444", marginBottom: 8 }}>→ {t.taak}</div>
-                                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                                  {t.hardskills.map((s, k) => <EscoSkillPill key={"h"+k} item={s} bg="#eef2ff" col="#3730a3" />)}
-                                  {t.softskills.map((s, k) => <EscoSkillPill key={"s"+k} item={s} bg="#fef3c7" col="#92400e" />)}
+                            {taken.map((t, j) => {
+                              const skillsVoorTaak = [...t.hardskills, ...t.softskills];
+                              return (
+                                <div key={j} style={{ marginBottom: 18, paddingBottom: 18, borderBottom: j < taken.length - 1 ? "1px solid #f0efe8" : "none" }}>
+                                  <div style={{ fontSize: 13, color: "#444", marginBottom: 8 }}>→ {t.taak}</div>
+                                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+                                    {t.hardskills.map((s, k) => <EscoSkillPill key={"h"+k} item={s} bg="#eef2ff" col="#3730a3" />)}
+                                    {t.softskills.map((s, k) => <EscoSkillPill key={"s"+k} item={s} bg="#fef3c7" col="#92400e" />)}
+                                  </div>
+                                  {skillsVoorTaak.map(s => <BeoordelingRij key={s.tekst} tekst={s.tekst} waarde={beoordelingen[s.tekst]} onChange={wijzigBeoordeling} />)}
                                 </div>
-                              </div>
-                            ))}
-                            {uniekeSkillsFunctie.length > 0 && (
-                              <div style={{ marginTop: 18, paddingTop: 16, borderTop: "1px solid #f0efe8" }}>
-                                <div style={{ fontSize: 12, fontWeight: 600, color: "#555", marginBottom: 10 }}>Hoe goed en hoe leuk vind jij dit?</div>
-                                {uniekeSkillsFunctie.map(tekst => <BeoordelingRij key={tekst} tekst={tekst} waarde={beoordelingen[tekst]} onChange={wijzigBeoordeling} />)}
-                              </div>
-                            )}
+                              );
+                            })}
                           </div>
                         </div>
                       );
@@ -914,7 +907,7 @@ Functietitel: "${functie.titel}"
 Bedrijf/context: "${functie.bedrijf}"
 Taken die al uit het CV blijken: ${JSON.stringify(functie.taken || [])}
 
-Genereer een lijst van ongeveer 8-10 taken in totaal:
+Genereer een lijst van precies 8 taken in totaal:
 - Neem de taken uit het CV letterlijk of licht herschreven over, met "bron": "cv"
 - Vul aan met taken die gebruikelijk zijn voor dit beroep/deze functie, met "bron": "beroep"
 - Wees zo specifiek/fijnmazig mogelijk (bijv. "MIG-lassen uitvoeren" i.p.v. "lassen uitvoeren")
