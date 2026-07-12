@@ -33,10 +33,15 @@ async function laadEscoData() {
 
 /** Simpele voorselectie: score kandidaten op woordoverlap met de zoekterm. */
 function vindKandidaten(zoekterm, alleSkills, aantal = 25) {
-  const zoekwoorden = zoekterm.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+  const zoektermLower = zoekterm.toLowerCase();
+  const zoekwoorden = zoektermLower.split(/\s+/).filter(w => w.length > 2);
   const gescoord = alleSkills.map(skill => {
     const tekst = (skill.label + " " + skill.definitie).toLowerCase();
-    const score = zoekwoorden.filter(w => tekst.includes(w)).length;
+    let score = zoekwoorden.filter(w => tekst.includes(w)).length;
+    // Tweerichtingsverkeer: check ook of ESCO-woorden binnen de zoekterm voorkomen.
+    // Dit vangt samengestelde woorden zoals "stakeholdermanagement" (bevat "management").
+    const escoWoorden = tekst.split(/\s+/).filter(w => w.length >= 5);
+    score += escoWoorden.filter(w => zoektermLower.includes(w)).length * 0.5;
     return { ...skill, score };
   });
   return gescoord.filter(s => s.score > 0).sort((a, b) => b.score - a.score).slice(0, aantal);
