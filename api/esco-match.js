@@ -81,14 +81,23 @@ Antwoord ALLEEN met dit JSON-object (geen uitleg, geen backticks):
       },
       body: JSON.stringify({
         model: "claude-sonnet-5",
-        max_tokens: 200,
+        max_tokens: 400,
         messages: [{ role: "user", content: prompt }],
       }),
     });
 
     const claudeData = await claudeRes.json();
     const antwoordTekst = claudeData.content?.map(b => b.text || "").join("") || "{}";
-    const { beste_match_nummer, confidence } = JSON.parse(antwoordTekst.replace(/```json|```/g, "").trim());
+
+    let beste_match_nummer, confidence;
+    try {
+      const jsonMatch = antwoordTekst.match(/\{[\s\S]*\}/);
+      const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : antwoordTekst);
+      beste_match_nummer = parsed.beste_match_nummer;
+      confidence = parsed.confidence;
+    } catch {
+      return res.status(200).json({ match: null, reden: "kon antwoord niet verwerken", ruw: antwoordTekst });
+    }
 
     if (!beste_match_nummer || beste_match_nummer === 0) {
       return res.status(200).json({ match: null, reden: "geen goede match gevonden" });
