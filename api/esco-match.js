@@ -32,7 +32,7 @@ async function laadEscoData() {
 }
 
 /** Simpele voorselectie: score kandidaten op woordoverlap met de zoekterm. */
-function vindKandidaten(zoekterm, alleSkills, aantal = 12) {
+function vindKandidaten(zoekterm, alleSkills, aantal = 25) {
   const zoekwoorden = zoekterm.toLowerCase().split(/\s+/).filter(w => w.length > 2);
   const gescoord = alleSkills.map(skill => {
     const tekst = (skill.label + " " + skill.definitie).toLowerCase();
