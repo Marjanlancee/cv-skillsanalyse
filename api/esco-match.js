@@ -1,51 +1,26 @@
 // ═══════════════════════════════════════════════════════════════
 // Dit bestand hoort in: api/esco-match.js
 //
-// WAT DIT DOET:
-// Matcht een los stukje tekst (bijv. "veldbekabeling" of "elektrotechnische
-// installaties aanleggen") aan de dichtstbijzijnde officiële ESCO-skill,
-// op dezelfde manier als de taakskills-analyse-tool: eerst een voorselectie
-// van kandidaten uit de echte ESCO-lijst, daarna laat Claude de beste
-// kiezen op basis van de definitie — zodat er nooit een verzonnen
-// code/URI kan ontstaan.
+// WAT DIT DOET (nieuwe versie — betekenis-zoeken):
+// Matcht een los stukje tekst (bijv. "nauwkeurigheid") aan de
+// dichtstbijzijnde officiële ESCO-skill, door BETEKENIS te vergelijken
+// in plaats van woorden. Zo wordt bijvoorbeeld "nauwkeurigheid" wél
+// herkend als vergelijkbaar met "zorgvuldig werken", ook al delen ze
+// geen enkel woord.
 //
-// BRONGEGEVENS: dezelfde twee bestanden als de taakskills-analyse-tool
-//   - esco_hardskills.json  (~13.000 vakinhoudelijke skills)
-//   - esco_softskills.json  (~90 transversale/soft skills)
+// Dit gebruikt de gedeelde esco_embeddings-tabel in Supabase — dezelfde
+// tabel die ook andere tools (taakskills-tool, CompetentNL/Lightcast-
+// tools) straks kunnen gebruiken.
 // ═══════════════════════════════════════════════════════════════
 
-const HARDSKILLS_URL = "https://raw.githubusercontent.com/Marjanlancee/taakskills-analyse-esco/refs/heads/main/esco_hardskills.json";
-const SOFTSKILLS_URL = "https://raw.githubusercontent.com/Marjanlancee/taakskills-analyse-esco/refs/heads/main/esco_softskills.json";
+import { createClient } from "@supabase/supabase-js";
 
-// Cache in het geheugen van de server, zodat we niet bij elke aanvraag
-// opnieuw de hele lijst (13.000+ items) hoeven te downloaden.
-let escoCache = null;
+const SUPABASE_URL = "https://stzgxsgocqbuquzavgsu.supabase.co";
+const SUPABASE_KEY = "sb_publishable_JaDLY5jH7poc4oRjx_EoeQ_c2jyT39c";
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-async function laadEscoData() {
-  if (escoCache) return escoCache;
-  const [hardRes, softRes] = await Promise.all([fetch(HARDSKILLS_URL), fetch(SOFTSKILLS_URL)]);
-  const hard = await hardRes.json();
-  const soft = await softRes.json();
-  // Elke regel heeft de vorm: [label, code, type, uri, definitie]
-  escoCache = [...hard, ...soft].map(([label, code, type, uri, definitie]) => ({ label, code, type, uri, definitie }));
-  return escoCache;
-}
-
-/** Simpele voorselectie: score kandidaten op woordoverlap met de zoekterm. */
-function vindKandidaten(zoekterm, alleSkills, aantal = 35) {
-  const zoektermLower = zoekterm.toLowerCase();
-  const zoekwoorden = zoektermLower.split(/\s+/).filter(w => w.length > 2);
-  const gescoord = alleSkills.map(skill => {
-    const tekst = (skill.label + " " + skill.definitie).toLowerCase();
-    let score = zoekwoorden.filter(w => tekst.includes(w)).length;
-    // Tweerichtingsverkeer: check ook of ESCO-woorden binnen de zoekterm voorkomen.
-    // Dit vangt samengestelde woorden zoals "stakeholdermanagement" (bevat "management").
-    const escoWoorden = tekst.split(/\s+/).filter(w => w.length >= 5);
-    score += escoWoorden.filter(w => zoektermLower.includes(w)).length * 0.5;
-    return { ...skill, score };
-  });
-  return gescoord.filter(s => s.score > 0).sort((a, b) => b.score - a.score).slice(0, aantal);
-}
+// Onder deze grens (0-1) beschouwen we het niet als een goede match
+const MINIMALE_ZEKERHEID = 0.70;
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -58,69 +33,47 @@ export default async function handler(req, res) {
   }
 
   try {
-    const alleSkills = await laadEscoData();
-    const kandidaten = vindKandidaten(text, alleSkills);
-
-    if (kandidaten.length === 0) {
-      return res.status(200).json({ match: null, reden: "geen kandidaten gevonden" });
-    }
-
-    // Claude kiest de beste match uit de ECHTE kandidatenlijst — nooit
-    // een zelfverzonnen code, precies zoals bij de taakskills-analyse-tool.
-    const prompt = `Je krijgt een term uit een CV en een lijst met mogelijke ESCO-skills. Kies de skill die semantisch het beste past bij de term, gebaseerd op de definitie — niet alleen op letterlijke woorden.
-
-Term uit CV: "${text}"
-
-Mogelijke ESCO-skills:
-${kandidaten.map((k, i) => `${i + 1}. "${k.label}" — ${k.definitie}`).join("\n")}
-
-Antwoord ALLEEN met dit JSON-object (geen uitleg, geen backticks):
-{"beste_match_nummer": <nummer 1-${kandidaten.length}, of 0 als geen enkele skill goed past>, "confidence": <getal tussen 0 en 1>}`;
-
-    const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
+    // Stap 1: de zoekterm omzetten naar een "betekenis-vingerafdruk"
+    const embedRes = await fetch("https://api.openai.com/v1/embeddings", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
+        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
       },
-      body: JSON.stringify({
-        model: "claude-sonnet-5",
-        max_tokens: 400,
-        messages: [{ role: "user", content: prompt }],
-      }),
+      body: JSON.stringify({ model: "text-embedding-3-small", input: text }),
+    });
+    const embedData = await embedRes.json();
+    if (!embedData.data) {
+      return res.status(200).json({ match: null, reden: "kon geen betekenis-vingerafdruk maken" });
+    }
+    const queryEmbedding = embedData.data[0].embedding;
+
+    // Stap 2: de dichtstbijzijnde skill(s) opzoeken in de gedeelde tabel (alleen binnen ESCO)
+    const { data: resultaten, error } = await supabase.rpc("match_skill", {
+      query_embedding: queryEmbedding,
+      match_count: 1,
+      filter_bron: "esco",
     });
 
-    const claudeData = await claudeRes.json();
-    const antwoordTekst = claudeData.content?.map(b => b.text || "").join("") || "{}";
-
-    let beste_match_nummer, confidence;
-    try {
-      const jsonMatch = antwoordTekst.match(/\{[\s\S]*\}/);
-      const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : antwoordTekst);
-      beste_match_nummer = parsed.beste_match_nummer;
-      confidence = parsed.confidence;
-    } catch {
-      return res.status(200).json({ match: null, reden: "kon antwoord niet verwerken", ruw: antwoordTekst });
+    if (error || !resultaten || resultaten.length === 0) {
+      return res.status(200).json({ match: null, reden: "geen kandidaten gevonden" });
     }
 
-    if (!beste_match_nummer || beste_match_nummer === 0) {
+    const beste = resultaten[0];
+    if (beste.similarity < MINIMALE_ZEKERHEID) {
       return res.status(200).json({ match: null, reden: "geen goede match gevonden" });
     }
 
-    const gekozenSkill = kandidaten[beste_match_nummer - 1];
     res.status(200).json({
       match: {
-        label: gekozenSkill.label,
-        code: gekozenSkill.code,
-        uri: gekozenSkill.uri,
-        type: gekozenSkill.type === "tr" ? "softskill" : "hardskill",
-        confidence: confidence || 0.5,
+        label: beste.label,
+        code: beste.code,
+        uri: beste.uri,
+        type: beste.type,
+        confidence: beste.similarity,
       },
     });
   } catch (error) {
-    // Bij een fout geven we gewoon "geen match" terug, zodat het opslaan
-    // van de rest van het skillsprofiel niet vastloopt.
     res.status(200).json({ match: null, error: error.message });
   }
 }
