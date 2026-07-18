@@ -19,8 +19,10 @@ const SUPABASE_URL = "https://stzgxsgocqbuquzavgsu.supabase.co";
 const SUPABASE_KEY = "sb_publishable_JaDLY5jH7poc4oRjx_EoeQ_c2jyT39c";
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Onder deze grens (0-1) beschouwen we het niet als een goede match
-const MINIMALE_ZEKERHEID = 0.70;
+// Onder deze grens (0-1) beschouwen we het niet als een goede match.
+// Dit is een instelbare knop — als er nog te vaak "geen match" verschijnt,
+// kunnen we dit getal nog verder verlagen.
+const MINIMALE_ZEKERHEID = 0.45;
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
