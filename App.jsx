@@ -433,6 +433,7 @@ export default function App() {
       setFunctieSkills(verrijkt);
       setCvData(prev => ({ ...prev, hobbySkills: hobbyVerrijkt }));
       setBeoordelingen(beoordelingInit);
+      setActiveResultTab("functies");
       setCvStage("result");
 
       setSaveStatus("opslaan...");
@@ -654,6 +655,13 @@ export default function App() {
 
           {cvStage === "result" && cvData && (
             <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+              <div style={{ background: "#fffbeb", borderBottom: "1px solid #fde68a", padding: "10px 32px", display: "flex", gap: 24, alignItems: "center", fontSize: 12, flexWrap: "wrap" }}>
+                <span style={{ fontWeight: 700, color: activeResultTab === "functies" ? "#92400e" : "#c4a875" }}>1. Beoordeel je skills {activeResultTab === "functies" && "← je bent hier"}</span>
+                <span style={{ color: "#c4a875" }}>→</span>
+                <span style={{ fontWeight: 700, color: activeResultTab === "profiel" ? "#92400e" : "#c4a875" }}>2. Bekijk je skillsprofiel {activeResultTab === "profiel" && "← je bent hier"}</span>
+                <span style={{ color: "#c4a875" }}>→</span>
+                <span style={{ fontWeight: 500, color: "#c4a875" }}>3. (optioneel) Drijfveren Test + Ontwikkeladvies voor een rijker verhaal</span>
+              </div>
               <div style={{ background: "#fafaf8", borderBottom: "1px solid #e8e7e0", display: "flex", padding: "0 32px", overflowX: "auto", alignItems: "center" }}>
                 {RESULT_TABS.map(t => (<button key={t.id} onClick={() => setActiveResultTab(t.id)} style={{ padding: "13px 16px", fontSize: 13, fontWeight: 500, color: activeResultTab === t.id ? "#1a1a2e" : "#888", border: "none", borderBottom: activeResultTab === t.id ? "2px solid #e8c547" : "2px solid transparent", background: "none", cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" }}>{t.label}</button>))}
                 {saveStatus && (<span style={{ marginLeft: 16, fontSize: 12, color: saveStatus === "opgeslagen" ? "#166534" : saveStatus === "fout" ? "#991b1b" : "#888" }}>{saveStatus === "opslaan..." && "⏳ Opslaan in SkillsPortaal…"}{saveStatus === "opgeslagen" && `✅ Opgeslagen (${escoMatchCount} ESCO-skills gekoppeld)`}{saveStatus === "fout" && "⚠️ Opslaan mislukt"}</span>)}
@@ -801,6 +809,11 @@ export default function App() {
                         </div>
                       );
                     })}
+                    <div style={{ textAlign: "center", marginTop: 8, marginBottom: 20 }}>
+                      <button onClick={() => setActiveResultTab("profiel")} style={{ padding: "12px 28px", borderRadius: 10, background: "#1a1a2e", color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                        Klaar met beoordelen → Bekijk mijn skillsprofiel
+                      </button>
+                    </div>
                   </>
                 )}
 
