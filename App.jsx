@@ -703,7 +703,7 @@ export default function App() {
         )}
 
         {laden === "skillsMatchen" && (
-          <LaadScherm titel="Skills worden bepaald…" tekst="Per taak zoeken we uit welke skills daarbij horen, en koppelen we die aan een landelijke skills-database." />
+          <LaadScherm titel="Skills worden bepaald…" tekst="Per taak zoeken we uit welke skills daarbij horen." />
         )}
 
         {/* ── STAP: skills valideren ── */}
@@ -820,7 +820,7 @@ export default function App() {
           <div style={{ flex: 1, overflowY: "auto", padding: "32px" }}>
             <div style={{ maxWidth: 680, margin: "0 auto" }}>
               <div style={{ fontFamily: "Georgia,serif", fontSize: 22, fontWeight: 600, color: KLEUR.inkt, marginBottom: 8 }}>Waar wil jij naartoe groeien?</div>
-              <p style={{ fontSize: 13, color: "#666", lineHeight: 1.6, marginBottom: 16 }}>Wil je nog iets leren, of een andere kant op? Typ het hier, het hoeft niet netjes. Wij denken met je mee.</p>
+              <p style={{ fontSize: 13, color: "#666", lineHeight: 1.6, marginBottom: 16 }}>Wil je nog iets leren, of een andere kant op? Typ het hier. Wij denken met je mee.</p>
               <Card style={{ marginBottom: 20 }}>
                 <textarea value={ontwikkelDoel} onChange={e => setOntwikkelDoel(e.target.value)} placeholder="Bijv: Ik wil doorgroeien naar een leidinggevende rol, maar merk dat ik moeite heb om mensen aan te sturen…" style={{ width: "100%", minHeight: 110, padding: "14px 16px", borderRadius: 6, border: "1px solid #d0cfc8", fontSize: 14, fontFamily: "inherit", lineHeight: 1.6, color: "#333", background: KLEUR.papier, resize: "vertical", outline: "none", boxSizing: "border-box" }} />
                 <div style={{ marginTop: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -962,27 +962,32 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
           </>
         )}
 
-        {/* Alle skills */}
+        {/* Alle skills, compact */}
         {hardList.length > 0 && (
           <Card style={{ marginBottom: 16 }}>
             <SectionTitle>Hardskills ({hardList.length})</SectionTitle>
-            {hardList.map(item => (
-              <div key={item.tekst} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: `1px solid ${KLEUR.lijn}` }}>
-                <div style={{ marginBottom: 8 }}><EscoSkillPill item={item} bg="#eef2ff" col="#3730a3" /></div>
-                <MiniSchaal label="Niveau" labels={NIVEAUS} waarde={beoordelingen[item.tekst] || 3} onChange={v => wijzigBeoordeling(item.tekst, v)} />
-              </div>
-            ))}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {hardList.map(item => (
+                <div key={item.tekst} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <EscoSkillPill item={item} bg="#eef2ff" col="#3730a3" />
+                  <span style={{ fontSize: 10, color: "#999" }}>{NIVEAUS[(beoordelingen[item.tekst] || 3) - 1]}</span>
+                </div>
+              ))}
+            </div>
           </Card>
         )}
         {softList.length > 0 && (
           <Card style={{ marginBottom: 16 }}>
             <SectionTitle>Softskills ({softList.length})</SectionTitle>
-            {softList.map(item => (
-              <div key={item.tekst} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: `1px solid ${KLEUR.lijn}` }}>
-                <div style={{ marginBottom: 8 }}><EscoSkillPill item={item} bg="#fef3c7" col="#92400e" /></div>
-                <MiniSchaal label="Niveau" labels={NIVEAUS} waarde={beoordelingen[item.tekst] || 3} onChange={v => wijzigBeoordeling(item.tekst, v)} />
-              </div>
-            ))}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {softList.map(item => (
+                <div key={item.tekst} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <EscoSkillPill item={item} bg="#fef3c7" col="#92400e" />
+                  <span style={{ fontSize: 10, color: "#999" }}>{NIVEAUS[(beoordelingen[item.tekst] || 3) - 1]}</span>
+                </div>
+              ))}
+            </div>
+            <p style={{ fontSize: 11, color: "#aaa", marginTop: 12 }}>Niveau aanpassen? Ga terug naar de stap "Valideren".</p>
           </Card>
         )}
 
