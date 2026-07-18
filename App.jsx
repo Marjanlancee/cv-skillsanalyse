@@ -670,7 +670,7 @@ export default function App() {
         )}
 
         {laden === "takenGenereren" && (
-          <LaadScherm titel="Taken worden opgezocht…" tekst="Dit zijn dingen die vaak bij dit werk horen, aangevuld met wat er in je CV staat." />
+          <LaadScherm titel="Taken worden opgezocht…" tekst="We zoeken op wat er bij dit werk hoort en vullen aan met wat er in je CV staat." />
         )}
 
         {/* ── STAP: taken uitvinken ── */}
@@ -872,7 +872,6 @@ export default function App() {
 function Kop({ sessie, onUitloggen }) {
   return (
     <div style={{ background: KLEUR.inkt, padding: "18px 32px", display: "flex", alignItems: "center", gap: 14 }}>
-      <div style={{ width: 40, height: 40, borderRadius: 6, background: `linear-gradient(135deg,${KLEUR.messing},${KLEUR.messingDonker})`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Georgia,serif", fontSize: 16, fontWeight: 700, color: KLEUR.papier, letterSpacing: "0.5px" }}>SA</div>
       <div>
         <div style={{ fontFamily: "Georgia,serif", fontSize: 19, fontWeight: 700, color: "#fff" }}>CV Skillsanalyse</div>
         <div style={{ fontSize: 12, color: "#a8b3bd", marginTop: 1 }}>Weten · Kunnen · Zijn · Willen in kaart brengen</div>
