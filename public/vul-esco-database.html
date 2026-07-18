@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<title>ESCO-database vullen (eenmalig)</title>
+<style>
+  body { font-family: 'Segoe UI', sans-serif; background: #f5f4f0; padding: 60px 20px; text-align: center; }
+  .card { background: #fff; max-width: 480px; margin: 0 auto; padding: 40px; border-radius: 16px; border: 1px solid #e8e7e0; }
+  h1 { font-size: 20px; color: #1a1a2e; }
+  p { color: #666; font-size: 14px; }
+  .balk { height: 14px; background: #e8e7e0; border-radius: 10px; overflow: hidden; margin: 20px 0; }
+  .vulling { height: 100%; background: linear-gradient(90deg,#e8c547,#f0a500); width: 0%; transition: width 0.3s; }
+  button { padding: 12px 28px; border-radius: 10px; background: #1a1a2e; color: #fff; border: none; font-size: 14px; font-weight: 600; cursor: pointer; }
+  button:disabled { background: #ccc; cursor: default; }
+  #status { margin-top: 16px; font-size: 13px; color: #888; }
+  #foutmelding { color: #991b1b; background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; padding: 12px; margin-top: 14px; font-size: 13px; display: none; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>🔗 ESCO-database vullen</h1>
+    <p>Dit is een eenmalige actie: alle ESCO-skills worden verwerkt en klaargezet voor betekenis-zoeken. Dit duurt enkele minuten — laat dit tabblad gewoon open staan.</p>
+    <div class="balk"><div class="vulling" id="vulling"></div></div>
+    <div id="status">Klaar om te starten.</div>
+    <div id="foutmelding"></div>
+    <button id="startknop" onclick="start()">Start</button>
+  </div>
+
+  <script>
+    async function start() {
+      document.getElementById('startknop').disabled = true;
+      document.getElementById('foutmelding').style.display = 'none';
+      let offset = 0;
+      let totaal = null;
+
+      while (true) {
+        try {
+          const res = await fetch(`/api/embed-batch?offset=${offset}&limit=100`);
+          const data = await res.json();
+
+          if (data.error) {
+            document.getElementById('foutmelding').style.display = 'block';
+            document.getElementById('foutmelding').textContent = '⚠️ ' + data.error;
+            document.getElementById('startknop').disabled = false;
+            return;
+          }
+
+          if (data.done) {
+            document.getElementById('vulling').style.width = '100%';
+            document.getElementById('status').textContent = `✅ Klaar! ${totaal || offset} skills verwerkt.`;
+            return;
+          }
+
+          totaal = data.totaal;
+          offset = data.volgendeOffset;
+          const percentage = Math.round((data.verwerkt / data.totaal) * 100);
+          document.getElementById('vulling').style.width = percentage + '%';
+          document.getElementById('status').textContent = `${data.verwerkt} van ${data.totaal} verwerkt (${percentage}%)`;
+        } catch (e) {
+          document.getElementById('foutmelding').style.display = 'block';
+          document.getElementById('foutmelding').textContent = '⚠️ ' + e.message;
+          document.getElementById('startknop').disabled = false;
+          return;
+        }
+      }
+    }
+  </script>
+</body>
+</html>
