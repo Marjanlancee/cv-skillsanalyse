@@ -38,8 +38,11 @@ export default async function handler(req, res) {
       return res.status(200).json({ done: true, totaal: alle.length });
     }
 
-    // In één keer een "betekenis-vingerafdruk" ophalen voor de hele portie
-    const teksten = batch.map(s => `${s.label}: ${s.definitie || ""}`);
+    // In één keer een "betekenis-vingerafdruk" ophalen voor de hele portie.
+    // BELANGRIJK: we gebruiken alleen het label (niet de definitie erbij), omdat
+    // een zoekterm ook altijd kort is (bijv. "Nauwkeurigheid") — zo vergelijken
+    // we appels met appels in plaats van een kort woord met een lange definitie.
+    const teksten = batch.map(s => s.label);
     const embedRes = await fetch("https://api.openai.com/v1/embeddings", {
       method: "POST",
       headers: {
