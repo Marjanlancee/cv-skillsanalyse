@@ -1,16 +1,13 @@
 import { useState, useRef, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 import mammoth from "mammoth";
-
 // ═══════════════════════════════════════════════════════════════
 // SUPABASE — koppeling met de SkillsPortaal database
 // ═══════════════════════════════════════════════════════════════
 const SUPABASE_URL = "https://stzgxsgocqbuquzavgsu.supabase.co";
 const SUPABASE_KEY = "sb_publishable_JaDLY5jH7poc4oRjx_EoeQ_c2jyT39c";
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-
 const NIVEAUS = ["Beginner", "Basis", "Gemiddeld", "Gevorderd", "Expert"];
-
 const KLEUR = {
   inkt: "#1e2a35",
   inktLicht: "#45566b",
@@ -19,13 +16,11 @@ const KLEUR = {
   papier: "#faf7f0",
   lijn: "#e3ded0",
 };
-
 // ─── Matcht een lijst skill-teksten parallel (sneller dan één voor één). ──
 async function verrijkMetEsco(teksten) {
   const matches = await Promise.all(teksten.map(tekst => vindEscoMatch(tekst)));
   return teksten.map((tekst, i) => ({ tekst, esco: matches[i] }));
 }
-
 async function vindEscoMatch(skillLabel) {
   try {
     const res = await fetch("/api/esco-match", {
@@ -39,7 +34,6 @@ async function vindEscoMatch(skillLabel) {
     return null;
   }
 }
-
 async function slaCvSkillsOp(functieSkills, hobbySkills, beoordelingen, authUserId, email) {
   try {
     const medewerkerId = await vindOfMaakMedewerker(authUserId, email);
@@ -51,10 +45,8 @@ async function slaCvSkillsOp(functieSkills, hobbySkills, beoordelingen, authUser
       });
     });
     (hobbySkills || []).forEach(item => alleItems.push(item));
-
     const uniek = new Map();
     alleItems.forEach(item => { if (!uniek.has(item.tekst)) uniek.set(item.tekst, item); });
-
     let opgeslagen = 0, escoGematcht = 0;
     for (const [tekst, item] of uniek) {
       const skillId = await vindOfMaakSkill(tekst);
@@ -69,7 +61,6 @@ async function slaCvSkillsOp(functieSkills, hobbySkills, beoordelingen, authUser
     return { success: false, error: error.message };
   }
 }
-
 async function vindOfMaakMedewerker(authUserId, email) {
   const { data: bestaande } = await supabase.from("medewerkers").select("id").eq("auth_user_id", authUserId).maybeSingle();
   if (bestaande) return bestaande.id;
@@ -77,7 +68,6 @@ async function vindOfMaakMedewerker(authUserId, email) {
   if (error) throw error;
   return nieuwe.id;
 }
-
 async function vindOfMaakSkill(skillLabel) {
   const { data: bestaande } = await supabase.from("skills").select("id").eq("bron_label", skillLabel).eq("bron_taxonomie", "eigen").maybeSingle();
   if (bestaande) return bestaande.id;
@@ -85,12 +75,10 @@ async function vindOfMaakSkill(skillLabel) {
   if (error) throw error;
   return nieuwe.id;
 }
-
 async function koppelSkillAanMedewerker(medewerkerId, skillId, niveau) {
   const { error } = await supabase.from("medewerker_skills").insert({ medewerker_id: medewerkerId, skill_id: skillId, bron: "cv_analyse", niveau: niveau || null });
   if (error) console.error("Fout bij koppelen skill:", error);
 }
-
 async function slaEscoMatchOp(skillId, escoMatch) {
   const { error } = await supabase.from("skill_matches").insert({
     skill_id: skillId,
@@ -101,7 +89,6 @@ async function slaEscoMatchOp(skillId, escoMatch) {
   });
   if (error) console.error("Fout bij opslaan match:", error);
 }
-
 // ─── Drijfveren types ────────────────────────────────────────────────────────
 const DRIJFVEER_TYPES = {
   R: { label: "De Maker", emoji: "🔧", kleur: "#c17a3a", omschrijving: "Jij houdt van praktisch werken en dingen voor elkaar krijgen. Je werkt graag met je handen of in de buitenlucht en ziet resultaat van je werk." },
@@ -111,7 +98,6 @@ const DRIJFVEER_TYPES = {
   E: { label: "De Leider", emoji: "🚀", kleur: "#b5482f", omschrijving: "Jij wil impact maken. Je overtuigt, neemt initiatief en stuurt aan op resultaat en groei." },
   C: { label: "De Organisator", emoji: "📋", kleur: "#1f7a6c", omschrijving: "Jij houdt van structuur en overzicht. Je werkt nauwkeurig, betrouwbaar en zorgt dat alles goed geregeld is." },
 };
-
 // ─── Eigen lijntekening-icoontjes per drijfveer-type (i.p.v. emoji) ────────────
 function DrijfveerIcon({ type, kleur, size = 22 }) {
   const paden = {
@@ -128,7 +114,6 @@ function DrijfveerIcon({ type, kleur, size = 22 }) {
     </svg>
   );
 }
-
 const DRIJFVEER_VRAGEN = [
   { id: 1, vraag: "Waar krijg jij het meeste energie van op je werk?", opties: [
     { tekst: "Iets bouwen, maken of repareren, zichtbaar resultaat zien", type: "R" },
@@ -171,7 +156,6 @@ const DRIJFVEER_VRAGEN = [
     { tekst: "Betrouwbaarheid, zorgen dat alles klopt en goed geregeld is", type: "C" },
   ]},
 ];
-
 const STAPPEN = [
   { id: "upload", label: "CV" },
   { id: "functies", label: "Functies" },
@@ -184,7 +168,6 @@ const STAPPEN = [
   { id: "roadmap", label: "Roadmap" },
   { id: "feedback", label: "Feedback" },
 ];
-
 const ROUTE_UITLEG = [
   { titel: "CV", tekst: "Upload je CV, wij lezen 'm" },
   { titel: "Functies", tekst: "Kies welke functies we uitwerken" },
@@ -197,11 +180,9 @@ const ROUTE_UITLEG = [
   { titel: "Roadmap", tekst: "Krijg concrete vervolgstappen" },
   { titel: "Feedback", tekst: "Bekijk feedback van collega's" },
 ];
-
 function SkillsModel() {
   return <img src="/skills-model.jpg" alt="Weten Kunnen Zijn Willen skills model" style={{ width: "100%", maxWidth: 220, display: "block", margin: "0 auto", borderRadius: 8 }} />;
 }
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function Spinner() {
   return (
@@ -211,15 +192,12 @@ function Spinner() {
     </>
   );
 }
-
 function Card({ children, style }) {
   return <div style={{ background: "#fff", borderRadius: 10, border: `1px solid ${KLEUR.lijn}`, padding: "22px 24px", ...style }}>{children}</div>;
 }
-
 function SectionTitle({ children }) {
   return <div style={{ fontFamily: "Georgia,serif", fontSize: 16, fontWeight: 600, color: KLEUR.inkt, marginBottom: 14 }}>{children}</div>;
 }
-
 function SkillsLegenda() {
   return (
     <div style={{ display: "flex", gap: 20, flexWrap: "wrap", padding: "12px 16px", background: KLEUR.papier, border: `1px solid ${KLEUR.lijn}`, borderRadius: 8, marginBottom: 18, fontSize: 12, color: "#555" }}>
@@ -230,7 +208,6 @@ function SkillsLegenda() {
     </div>
   );
 }
-
 function EscoSkillPill({ item, bg, col }) {
   const { tekst, esco } = typeof item === "string" ? { tekst: item, esco: null } : item;
   return (
@@ -248,7 +225,6 @@ function EscoSkillPill({ item, bg, col }) {
     </span>
   );
 }
-
 function MiniSchaal({ label, labels, waarde, onChange }) {
   return (
     <div style={{ minWidth: 260 }}>
@@ -267,7 +243,6 @@ function MiniSchaal({ label, labels, waarde, onChange }) {
     </div>
   );
 }
-
 function BeoordelingRij({ tekst, waarde, onChange }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "8px 12px", background: KLEUR.papier, borderRadius: 6, border: `1px solid ${KLEUR.lijn}`, marginBottom: 6, flexWrap: "wrap" }}>
@@ -276,7 +251,6 @@ function BeoordelingRij({ tekst, waarde, onChange }) {
     </div>
   );
 }
-
 // ─── Stappenbalk bovenaan: laat zien waar je bent, en waar je heen kan ─────────
 function Stappenbalk({ huidigeStap, hoogsteBezochte, voltooidValideren, gaNaar, aantalFeedback }) {
   const huidigIdx = STAPPEN.findIndex(s => s.id === huidigeStap);
@@ -295,7 +269,7 @@ function Stappenbalk({ huidigeStap, hoogsteBezochte, voltooidValideren, gaNaar, 
                 position: "relative",
                 display: "flex", alignItems: "center", gap: 7, padding: "6px 12px", borderRadius: 20, border: "none",
                 background: actief ? KLEUR.inkt : "transparent",
-                color: actief ? "#fff" : bereikbaar ? KLEUR.inkt : "#c2bda f",
+                color: actief ? "#fff" : bereikbaar ? KLEUR.inkt : "#c2bdaf",
                 fontSize: 13, fontWeight: actief ? 600 : 500, cursor: bereikbaar ? "pointer" : "default", fontFamily: "inherit",
                 opacity: bereikbaar ? 1 : 0.4,
               }}>
@@ -314,7 +288,6 @@ function Stappenbalk({ huidigeStap, hoogsteBezochte, voltooidValideren, gaNaar, 
     </div>
   );
 }
-
 // ─── Login / Registratie scherm ────────────────────────────────────────────
 function LoginScherm({ onIngelogd }) {
   const [modus, setModus] = useState("inloggen");
@@ -322,7 +295,6 @@ function LoginScherm({ onIngelogd }) {
   const [wachtwoord, setWachtwoord] = useState("");
   const [bezig, setBezig] = useState(false);
   const [foutmelding, setFoutmelding] = useState("");
-
   async function versturen(e) {
     e.preventDefault();
     setBezig(true);
@@ -341,7 +313,6 @@ function LoginScherm({ onIngelogd }) {
     } catch (err) { setFoutmelding(err.message || "Er ging iets mis."); }
     setBezig(false);
   }
-
   return (
     <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 32, minHeight: "70vh" }}>
       <div style={{ background: "#fff", borderRadius: 10, border: `1px solid ${KLEUR.lijn}`, padding: "40px 36px", maxWidth: 400, width: "100%" }}>
@@ -366,7 +337,6 @@ function LoginScherm({ onIngelogd }) {
     </div>
   );
 }
-
 // ─── Overslaan-knop met uitleg (voor optionele stappen) ────────────────────────
 // ─── Routekaart: metro-lijn stijl overzicht van de hele reis ──────────────────
 function RouteKaart() {
@@ -388,7 +358,6 @@ function RouteKaart() {
     </div>
   );
 }
-
 function OverslaanBlok({ onOverslaan }) {
   return (
     <div style={{ textAlign: "center", marginTop: 18, padding: "14px 18px", background: KLEUR.papier, borderRadius: 8, border: `1px dashed ${KLEUR.lijn}` }}>
@@ -401,45 +370,37 @@ function OverslaanBlok({ onOverslaan }) {
     </div>
   );
 }
-
 // ─── Hoofd App ────────────────────────────────────────────────────────────────
 export default function App() {
   // Als iemand op een gedeelde feedback-link klikt, hoeft die niet in te loggen —
   // toon dan meteen de openbare feedbackpagina, en sla al het andere over.
   const feedbackToken = new URLSearchParams(window.location.search).get("feedback");
   if (feedbackToken) return <FeedbackPagina token={feedbackToken} />;
-
   const [sessie, setSessie] = useState(null);
   const [sessieAanHetLaden, setSessieAanHetLaden] = useState(true);
-
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => { setSessie(data.session); setSessieAanHetLaden(false); });
     const { data: listener } = supabase.auth.onAuthStateChange((_e, s) => setSessie(s));
     return () => listener.subscription.unsubscribe();
   }, []);
-
   // ── De lineaire stap-status ──────────────────────────────────────────────
   const [stap, setStap] = useState("upload");
   const [laden, setLaden] = useState(null); // null | "analyseren" | "takenGenereren" | "skillsMatchen" | "profielGenereren"
   const [hoogsteBezochte, setHoogsteBezochte] = useState(0);
-
   const [cvData, setCvData] = useState(null);
   const [cvError, setCvError] = useState("");
   const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef();
   const [saveStatus, setSaveStatus] = useState(null);
   const [escoMatchCount, setEscoMatchCount] = useState(0);
-
   const [geselecteerdeFuncties, setGeselecteerdeFuncties] = useState(new Set());
   const [functieTaken, setFunctieTaken] = useState({});
   const [functieSkills, setFunctieSkills] = useState({});
   const [beoordelingen, setBeoordelingen] = useState({});
-
   const [copied, setCopied] = useState(false);
   const [verhaalFout, setVerhaalFout] = useState("");
   const [toekomstblik, setToekomstblik] = useState(null);
   const [toekomstLaden, setToekomstLaden] = useState(false);
-
   async function genereerToekomstblik(functieTitel) {
     setToekomstLaden(true);
     try {
@@ -448,7 +409,6 @@ export default function App() {
     } catch (e) { console.error(e); setToekomstblik([]); }
     setToekomstLaden(false);
   }
-
   // Vergelijken + Roadmap state
   const [functiesLijst, setFunctiesLijst] = useState([]);
   const [functiesLaden, setFunctiesLaden] = useState(false);
@@ -457,10 +417,8 @@ export default function App() {
   const [gapLaden, setGapLaden] = useState(false);
   const [roadmapOpgeslagen, setRoadmapOpgeslagen] = useState(false);
   const [roadmapLaden, setRoadmapLaden] = useState(false);
-
   // Feedback-functie
   const [feedbackLinks, setFeedbackLinks] = useState({}); // { functieIdx: { link, laden } }
-
   async function vraagFeedback(functieIdx) {
     setFeedbackLinks(prev => ({ ...prev, [functieIdx]: { laden: true } }));
     try {
@@ -471,42 +429,33 @@ export default function App() {
       taken.forEach(t => [...t.hardskills, ...t.softskills].forEach(s => {
         if (!gezien.has(s.tekst)) { gezien.add(s.tekst); skillsSnapshot.push({ tekst: s.tekst, eigenNiveau: beoordelingen[s.tekst] || 3 }); }
       }));
-
       const token = crypto.randomUUID();
       const verloopt = new Date(); verloopt.setDate(verloopt.getDate() + 14);
-
       const medewerker = await supabase.from("medewerkers").select("id").eq("auth_user_id", sessie.user.id).maybeSingle();
       const { error } = await supabase.from("feedback_verzoeken").insert({
         token, medewerker_id: medewerker.data.id,
         functie_titel: functie.titel, skills: skillsSnapshot, verloopt_op: verloopt.toISOString(),
       });
       if (error) throw error;
-
       const link = `${window.location.origin}${window.location.pathname}?feedback=${token}`;
       setFeedbackLinks(prev => ({ ...prev, [functieIdx]: { laden: false, link } }));
     } catch (e) { console.error(e); setFeedbackLinks(prev => ({ ...prev, [functieIdx]: { laden: false, fout: true } })); }
   }
-
   const [ontvangenFeedback, setOntvangenFeedback] = useState({}); // { functieIdx: { laden, reacties: [{naam, reacties: [{tekst,score,toelichting}]}] } }
-
   const [alleFeedback, setAlleFeedback] = useState(null); // null = nog niet geladen
   const aantalFeedback = alleFeedback?.items?.reduce((som, it) => som + it.reacties.length, 0) || 0;
-
   useEffect(() => {
     if (sessie && !alleFeedback) haalAlleFeedbackOp();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessie]);
-
   async function haalAlleFeedbackOp() {
     setAlleFeedback({ laden: true });
     try {
       const medewerker = await supabase.from("medewerkers").select("id").eq("auth_user_id", sessie.user.id).maybeSingle();
       const { data: verzoeken } = await supabase.from("feedback_verzoeken").select("id, functie_titel, skills").eq("medewerker_id", medewerker.data.id).order("aangemaakt_op", { ascending: false });
       if (!verzoeken || verzoeken.length === 0) { setAlleFeedback({ laden: false, items: [] }); return; }
-
       const verzoekIds = verzoeken.map(v => v.id);
       const { data: reacties } = await supabase.from("feedback_reacties").select("verzoek_id, naam_feedbackgever, reacties, aangemaakt_op").in("verzoek_id", verzoekIds);
-
       const items = verzoeken.map(v => ({
         functieTitel: v.functie_titel,
         skillsSnapshot: v.skills, // [{tekst, eigenNiveau}], de zelfbeoordeling van tóen
@@ -515,28 +464,23 @@ export default function App() {
       setAlleFeedback({ laden: false, items });
     } catch (e) { console.error(e); setAlleFeedback({ laden: false, items: [] }); }
   }
-
   // Drijfveren state
   const [drijfStap, setDrijfStap] = useState(0);
   const [antwoorden, setAntwoorden] = useState({});
   const [drijfResultaat, setDrijfResultaat] = useState(null);
   const [drijfLoading, setDrijfLoading] = useState(false);
   const [drijfFout, setDrijfFout] = useState("");
-
   // Ontwikkeladvies state
   const [ontwikkelDoel, setOntwikkelDoel] = useState("");
   const [ontwikkelAdvies, setOntwikkelAdvies] = useState(null);
   const [ontwikkelLoading, setOntwikkelLoading] = useState(false);
   const [ontwikkelError, setOntwikkelError] = useState("");
-
   const voltooidValideren = Object.keys(functieSkills).length > 0;
-
   function gaNaarStap(id) {
     setStap(id);
     const idx = STAPPEN.findIndex(s => s.id === id);
     if (idx > hoogsteBezochte) setHoogsteBezochte(idx);
   }
-
   async function callClaude(messages, maxTokens = 1000) {
     const res = await fetch("/api/claude", {
       method: "POST",
@@ -547,18 +491,15 @@ export default function App() {
     const json = await res.json();
     return json.content?.map(b => b.text || "").join("") || "";
   }
-
   function parseJSON(text) {
     const match = text.match(/\{[\s\S]*\}/);
     return JSON.parse(match ? match[0] : text.replace(/```json|```/g, "").trim());
   }
-
   // ── STAP 1: CV of Word-bestand uploaden ─────────────────────────────────────
   async function handleFile(file) {
     const isPdf = file?.type === "application/pdf";
     const isWord = file?.name?.toLowerCase().endsWith(".docx");
     if (!file || (!isPdf && !isWord)) { setCvError("Upload een PDF- of Word-bestand (.docx)."); setStap("fout"); return; }
-
     setLaden("analyseren");
     try {
       let messageContent;
@@ -575,7 +516,6 @@ export default function App() {
         const { value: tekst } = await mammoth.extractRawText({ arrayBuffer });
         messageContent = [{ type: "text", text: CV_PROMPT + "\n\nCV-tekst:\n" + tekst }];
       }
-
       const text = await callClaude([{ role: "user", content: messageContent }], 6000);
       const parsed = parseJSON(text);
       setCvData(parsed);
@@ -584,11 +524,9 @@ export default function App() {
       gaNaarStap("functies");
     } catch (e) { setCvError(e.message); setLaden(null); setStap("fout"); }
   }
-
   function toggleFunctie(idx) {
     setGeselecteerdeFuncties(prev => { const n = new Set(prev); n.has(idx) ? n.delete(idx) : n.add(idx); return n; });
   }
-
   // ── STAP 2 → 3: taken genereren ──────────────────────────────────────────────
   async function genereerTaken() {
     setLaden("takenGenereren");
@@ -605,11 +543,9 @@ export default function App() {
       gaNaarStap("taken");
     } catch (e) { setCvError(e.message); setLaden(null); setStap("fout"); }
   }
-
   function toggleTaak(functieIdx, taakId) {
     setFunctieTaken(prev => ({ ...prev, [functieIdx]: prev[functieIdx].map(t => t.id === taakId ? { ...t, geselecteerd: !t.geselecteerd } : t) }));
   }
-
   // ── STAP 3 → 4: skills koppelen ──────────────────────────────────────────────
   async function koppelSkills() {
     setLaden("skillsMatchen");
@@ -623,7 +559,6 @@ export default function App() {
         const text = await callClaude([{ role: "user", content: skillsPerTaakPrompt(functie.titel, gekozenTaken) }], 2200);
         ruweSkills[idx] = (parseJSON(text)).taken || [];
       }
-
       const alleTeksten = new Set();
       Object.values(ruweSkills).forEach(taken => taken.forEach(t => {
         (t.hardskills || []).forEach(s => alleTeksten.add(s));
@@ -633,7 +568,6 @@ export default function App() {
       const tekstenArr = [...alleTeksten];
       const matches = await Promise.all(tekstenArr.map(t => vindEscoMatch(t)));
       const matchMap = {}; tekstenArr.forEach((t, i) => matchMap[t] = matches[i]);
-
       const verrijkt = {};
       Object.entries(ruweSkills).forEach(([idx, taken]) => {
         verrijkt[idx] = taken.map(t => ({
@@ -643,46 +577,38 @@ export default function App() {
         }));
       });
       const hobbyVerrijkt = (cvData.hobbySkills || []).map(s => ({ tekst: s, esco: matchMap[s] }));
-
       const beoordelingInit = {};
       tekstenArr.forEach(t => { beoordelingInit[t] = 3; });
-
       setFunctieSkills(verrijkt);
       setCvData(prev => ({ ...prev, hobbySkills: hobbyVerrijkt }));
       setBeoordelingen(beoordelingInit);
       setLaden(null);
       gaNaarStap("valideren");
-
       setSaveStatus("opslaan...");
       const resultaat = await slaCvSkillsOp(verrijkt, hobbyVerrijkt, beoordelingInit, sessie.user.id, sessie.user.email);
       setSaveStatus(resultaat.success ? "opgeslagen" : "fout");
       setEscoMatchCount(resultaat.aantalEscoGematcht || 0);
     } catch (e) { setCvError(e.message); setLaden(null); setStap("fout"); }
   }
-
   function wijzigBeoordeling(tekst, waarde) {
     setBeoordelingen(prev => ({ ...prev, [tekst]: waarde }));
   }
-
   async function handOpslaan() {
     setSaveStatus("opslaan...");
     const resultaat = await slaCvSkillsOp(functieSkills, cvData?.hobbySkills || [], beoordelingen, sessie.user.id, sessie.user.email);
     setSaveStatus(resultaat.success ? "opgeslagen" : "fout");
     setEscoMatchCount(resultaat.aantalEscoGematcht || 0);
   }
-
   function copyStory() {
     const txt = [cvData?.verhaal?.alinea1, cvData?.verhaal?.alinea2, cvData?.verhaal?.alinea3].filter(Boolean).join("\n\n");
     navigator.clipboard.writeText(txt).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2200); });
   }
-
   async function laadFuncties() {
     setFunctiesLaden(true);
     const { data } = await supabase.from("functies").select("id, titel, werkgevers(naam)").order("titel");
     setFunctiesLijst(data || []);
     setFunctiesLaden(false);
   }
-
   async function berekenGap(functieId) {
     setGapLaden(true);
     setGapResultaat(null);
@@ -691,14 +617,12 @@ export default function App() {
       const { data: medewerker } = await supabase.from("medewerkers").select("id").eq("auth_user_id", sessie.user.id).maybeSingle();
       const { data: eigenRijen } = await supabase.from("medewerker_skills").select("skills(bron_label, skill_matches(esco_anker_code))").eq("medewerker_id", medewerker.id);
       const { data: functieRijen } = await supabase.from("functie_skills").select("verplicht, skills(id, bron_label, skill_matches(esco_anker_code))").eq("functie_id", functieId);
-
       const eigenSet = new Set();
       (eigenRijen || []).forEach(r => {
         const codes = (r.skills?.skill_matches || []).map(m => m.esco_anker_code).filter(Boolean);
         if (codes.length) codes.forEach(c => eigenSet.add(c));
         else if (r.skills?.bron_label) eigenSet.add("label:" + r.skills.bron_label.toLowerCase());
       });
-
       const matched = [], missing = [];
       (functieRijen || []).forEach(r => {
         const label = r.skills?.bron_label;
@@ -707,12 +631,10 @@ export default function App() {
         const heeftMatch = sleutels.some(s => eigenSet.has(s));
         (heeftMatch ? matched : missing).push({ label, verplicht: r.verplicht, skillId: r.skills?.id });
       });
-
       setGapResultaat({ matched, missing });
     } catch (e) { console.error(e); }
     setGapLaden(false);
   }
-
   async function maakRoadmap() {
     setRoadmapLaden(true);
     try {
@@ -724,7 +646,6 @@ export default function App() {
         titel: `Route naar ${functieTitel}`,
       }).select("id").single();
       if (error) throw error;
-
       const stappen = gapResultaat.missing.filter(s => s.skillId).map((s, i) => ({
         roadmap_id: roadmap.id,
         skill_id: s.skillId,
@@ -735,7 +656,6 @@ export default function App() {
     } catch (e) { console.error(e); }
     setRoadmapLaden(false);
   }
-
   function nieuwCv() {
     setStap("upload"); setLaden(null); setHoogsteBezochte(0);
     setCvData(null); setSaveStatus(null);
@@ -743,7 +663,6 @@ export default function App() {
     setDrijfStap(0); setAntwoorden({}); setDrijfResultaat(null);
     setOntwikkelDoel(""); setOntwikkelAdvies(null);
   }
-
   // ── Verhaal + Top5, automatisch gegenereerd zodra je bij het Skillsprofiel komt ──
   async function genereerVerhaalEnTop5() {
     setLaden("profielGenereren");
@@ -757,14 +676,12 @@ export default function App() {
       }));
       const drijfSamenvatting = drijfResultaat ? Object.entries(drijfResultaat.scores).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k]) => DRIJFVEER_TYPES[k].label).join(", ") : null;
       const ontwikkelSamenvatting = ontwikkelAdvies ? `${ontwikkelDoel} → richting: ${ontwikkelAdvies.richting}` : null;
-
       const text = await callClaude([{ role: "user", content: verhaalTop5Prompt(cvData, skillsMetNiveau, drijfSamenvatting, ontwikkelSamenvatting) }], 2200);
       const data = parseJSON(text);
       setCvData(prev => ({ ...prev, verhaal: data.verhaal, top5: data.top5, verhaalBronnen: data.bronnenGebruikt }));
     } catch (e) { console.error(e); setVerhaalFout("Het lukte niet om je verhaal te maken. Probeer het nog eens."); }
     setLaden(null);
   }
-
   // ── Drijfveren ────────────────────────────────────────────────────────────
   function kiesAntwoord(type) {
     const nieuw = { ...antwoorden, [drijfStap]: type };
@@ -801,7 +718,6 @@ export default function App() {
     }
     setDrijfLoading(false);
   }
-
   // ── Ontwikkeladvies ───────────────────────────────────────────────────────
   async function genereerOntwikkelAdvies() {
     setOntwikkelLoading(true); setOntwikkelAdvies(null); setOntwikkelError("");
@@ -813,10 +729,8 @@ export default function App() {
     } catch (e) { setOntwikkelError(e.message || "Er is een fout opgetreden."); }
     setOntwikkelLoading(false);
   }
-
   const huidigVraag = drijfStap >= 1 && drijfStap <= DRIJFVEER_VRAGEN.length ? DRIJFVEER_VRAGEN[drijfStap - 1] : null;
   const alleBeantwoord = Object.keys(antwoorden).length === DRIJFVEER_VRAGEN.length;
-
   const sterrenCSS = `
     .sterrenhemel {
       background-color: #0a121c;
@@ -836,9 +750,7 @@ export default function App() {
       .sterrenhemel { background: #fff !important; background-image: none !important; }
     }
   `;
-
   if (sessieAanHetLaden) return <div className="sterrenhemel" style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}><style>{sterrenCSS}</style><Spinner /></div>;
-
   if (!sessie) {
     return (
       <div className="sterrenhemel" style={{ fontFamily: "'Segoe UI',sans-serif", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
@@ -848,7 +760,6 @@ export default function App() {
       </div>
     );
   }
-
   return (
     <div className="sterrenhemel" style={{ fontFamily: "'Segoe UI',sans-serif", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       <style>{sterrenCSS}</style>
@@ -860,9 +771,7 @@ export default function App() {
           <img src="/logo-bright-dark.png" alt="Bright Work Solutions" style={{ height: 34, display: "block", filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.6))" }} />
         </a>
       </div>
-
       <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-
         {/* ── STAP: upload ── */}
         {stap === "upload" && !laden && (
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "32px 24px", gap: 56, flexWrap: "wrap" }}>
@@ -884,18 +793,15 @@ export default function App() {
             </div>
           </div>
         )}
-
         {laden === "analyseren" && (
           <LaadScherm titel="Je CV wordt gelezen…" tekst="We zoeken je functies, opleidingen en hobby's op. Daarna kies je zelf waar we dieper op ingaan." />
         )}
-
         {stap === "fout" && (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 48, textAlign: "center", gap: 16 }}>
             <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "18px 24px", color: "#991b1b", fontSize: 14, lineHeight: 1.6, maxWidth: 440 }}>⚠️ {cvError}</div>
             <button onClick={nieuwCv} style={{ padding: "10px 22px", borderRadius: 6, background: KLEUR.inkt, color: "#fff", border: "none", fontSize: 14, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>← Opnieuw proberen</button>
           </div>
         )}
-
         {/* ── STAP: functies kiezen ── */}
         {stap === "functies" && cvData && !laden && (
           <div style={{ flex: 1, display: "flex", justifyContent: "center", padding: 32, overflowY: "auto" }}>
@@ -921,11 +827,9 @@ export default function App() {
             </div>
           </div>
         )}
-
         {laden === "takenGenereren" && (
           <LaadScherm titel="Taken worden opgezocht…" tekst="We zoeken op wat er bij dit werk hoort en vullen aan met wat er in je CV staat." />
         )}
-
         {/* ── STAP: taken uitvinken ── */}
         {stap === "taken" && !laden && (
           <div style={{ flex: 1, padding: "28px 32px", overflowY: "auto" }}>
@@ -954,11 +858,9 @@ export default function App() {
             </div>
           </div>
         )}
-
         {laden === "skillsMatchen" && (
           <LaadScherm titel="Skills worden bepaald…" tekst="Per taak zoeken we uit welke skills daarbij horen." />
         )}
-
         {/* ── STAP: skills valideren ── */}
         {stap === "valideren" && !laden && (
           <div style={{ flex: 1, padding: "28px 32px", overflowY: "auto" }}>
@@ -1025,7 +927,6 @@ export default function App() {
             </div>
           </div>
         )}
-
         {/* ── STAP: drijfveren ── */}
         {stap === "drijfveren" && (
           <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
@@ -1098,7 +999,6 @@ export default function App() {
             })()}
           </div>
         )}
-
         {/* ── STAP: ontwikkelen ── */}
         {stap === "ontwikkelen" && (
           <div style={{ flex: 1, overflowY: "auto", padding: "32px" }}>
@@ -1135,7 +1035,6 @@ export default function App() {
             </div>
           </div>
         )}
-
         {/* ── STAP: skillsprofiel (eindresultaat) ── */}
         {stap === "profiel" && cvData && (
           <ProfielStap
@@ -1147,7 +1046,6 @@ export default function App() {
             alleFeedback={alleFeedback} haalAlleFeedbackOp={haalAlleFeedbackOp}
           />
         )}
-
         {/* ── STAP: vergelijken met een functie ── */}
         {stap === "vergelijken" && (
           <VergelijkStap
@@ -1156,21 +1054,18 @@ export default function App() {
             berekenGap={berekenGap} gapResultaat={gapResultaat} gapLaden={gapLaden} gaNaarStap={gaNaarStap}
           />
         )}
-
         {/* ── STAP: roadmap ── */}
         {stap === "roadmap" && (
           <RoadmapStap gapResultaat={gapResultaat} maakRoadmap={maakRoadmap} roadmapLaden={roadmapLaden} roadmapOpgeslagen={roadmapOpgeslagen}
             functieTitel={functiesLijst.find(f => f.id === gekozenVergelijkFunctie)?.titel} gaNaarStap={gaNaarStap}
             toekomstblik={toekomstblik} toekomstLaden={toekomstLaden} genereerToekomstblik={genereerToekomstblik} />
         )}
-
         {/* ── STAP: feedback ── */}
         {stap === "feedback" && <FeedbackStap alleFeedback={alleFeedback} />}
       </div>
     </div>
   );
 }
-
 // ─── Kop (header) ───────────────────────────────────────────────────────────
 function Kop({ sessie, onUitloggen }) {
   return (
@@ -1188,42 +1083,102 @@ function Kop({ sessie, onUitloggen }) {
     </div>
   );
 }
-
+// ─── Feedback: compacte niveaubalk (5 blokjes, gevuld tot het niveau) ────────
+function NiveauBalk({ waarde, kleur }) {
+  return (
+    <div style={{ display: "flex", gap: 3, flex: 1, minWidth: 90 }}>
+      {NIVEAUS.map((n, i) => (
+        <div key={i} title={n} style={{ flex: 1, height: 11, borderRadius: 2, background: i < waarde ? kleur : "rgba(60,63,109,0.13)" }} />
+      ))}
+    </div>
+  );
+}
+// ─── Feedback: één skill, jouw inschatting vs die van de feedbackgever ────────
+function SkillVergelijk({ tekst, eigenNiveau, feedbackScore, toelichting, naam }) {
+  const verschil = feedbackScore - eigenNiveau;
+  const status = verschil === 0
+    ? { label: "Zelfde beeld", teken: "=", rand: "#9299d6", chipBg: "rgba(146,153,214,0.20)", chipTxt: "#43477e" }
+    : verschil > 0
+      ? { label: "Ziet je sterker", teken: "▲", rand: "#4a8a5c", chipBg: "rgba(74,138,92,0.16)", chipTxt: "#2f6b45" }
+      : { label: "Ontwikkelpunt", teken: "▼", rand: "#c78a2f", chipBg: "rgba(199,138,47,0.18)", chipTxt: "#89591b" };
+  return (
+    <div style={{ background: "rgba(255,255,255,0.65)", borderRadius: 8, padding: "11px 14px", marginBottom: 8, borderLeft: `4px solid ${status.rand}` }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 10 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#2a2d4d" }}>{tekst}</div>
+        <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 9px", borderRadius: 20, background: status.chipBg, color: status.chipTxt, whiteSpace: "nowrap", flexShrink: 0 }}>{status.teken} {status.label}</span>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+        <span style={{ fontSize: 11, color: "#3a3d5c", width: 62, flexShrink: 0 }}>Jij</span>
+        <NiveauBalk waarde={eigenNiveau} kleur="#2f6690" />
+        <span style={{ fontSize: 11, fontWeight: 600, color: "#2f6690", width: 76, textAlign: "right", flexShrink: 0 }}>{NIVEAUS[eigenNiveau - 1]}</span>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{ fontSize: 11, color: "#3a3d5c", width: 62, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={naam}>{naam}</span>
+        <NiveauBalk waarde={feedbackScore} kleur={KLEUR.messing} />
+        <span style={{ fontSize: 11, fontWeight: 600, color: KLEUR.messingDonker, width: 76, textAlign: "right", flexShrink: 0 }}>{NIVEAUS[feedbackScore - 1]}</span>
+      </div>
+      {toelichting && <div style={{ fontSize: 11, color: "#6a6d8f", marginTop: 8, fontStyle: "italic" }}>&ldquo;{toelichting}&rdquo;</div>}
+    </div>
+  );
+}
+// ─── Feedback: klein telpilletje voor de samenvatting ────────────────────────
+function TelPil({ aantal, label, kleur, bg }) {
+  if (!aantal) return null;
+  return (
+    <span style={{ fontSize: 11, fontWeight: 600, color: kleur, background: bg, borderRadius: 20, padding: "4px 11px" }}>
+      {aantal}&times; {label}
+    </span>
+  );
+}
 function FeedbackStap({ alleFeedback }) {
   const items = (alleFeedback?.items || []).filter(it => it.reacties.length > 0);
   return (
     <div style={{ flex: 1, padding: "28px 32px", overflowY: "auto" }}>
       <div style={{ maxWidth: 700, margin: "0 auto" }}>
         <div style={{ fontFamily: "Georgia,serif", fontSize: 22, fontWeight: 600, color: "#fff", marginBottom: 8 }}>Ontvangen feedback</div>
-        <p style={{ fontSize: 13, color: "#c4cdd4", lineHeight: 1.6, marginBottom: 20 }}>Hier verschijnt automatisch alle feedback die collega's of leidinggevenden via een link hebben achtergelaten.</p>
-
+        <p style={{ fontSize: 13, color: "#c4cdd4", lineHeight: 1.6, marginBottom: 20 }}>Hier verschijnt automatisch alle feedback die collega's of leidinggevenden via een link hebben achtergelaten. De blauwe balk is jouw eigen inschatting, de messingkleurige balk die van de ander. Rijen met een gekleurd randje zijn de plekken waar jullie het verschillend zien.</p>
         <div style={{ background: "radial-gradient(circle at 50% 30%, #f1f2fb 0%, #d3d6f0 60%, #a8ade0 100%)", borderRadius: 12, padding: 30, boxShadow: "0 16px 36px rgba(92,98,160,0.35)", border: "1px solid #9299d6" }}>
           {alleFeedback?.laden && <p style={{ fontSize: 13, color: "#3c3f6b" }}>Bezig met ophalen…</p>}
           {!alleFeedback?.laden && items.length === 0 && <p style={{ fontSize: 13, color: "#3c3f6b" }}>Nog geen feedback ontvangen. Vraag 'm aan bij de stap "Skills".</p>}
-
           {items.map((item, ii) => (
             <div key={ii} style={{ marginBottom: 20, paddingBottom: 20, borderBottom: ii < items.length - 1 ? "1px solid rgba(92,98,160,0.25)" : "none" }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#2a2d4d", marginBottom: 12 }}>Over: {item.functieTitel}</div>
-              {item.reacties.map((r, ri) => (
-                <div key={ri} style={{ marginBottom: 16 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: "#3c3f6b", marginBottom: 10 }}>
-                    Feedback van {r.naam_feedbackgever}
-                    <span style={{ fontWeight: 400, color: "#6a6d8f" }}> · {new Date(r.aangemaakt_op).toLocaleDateString("nl-NL", { day: "numeric", month: "long", year: "numeric" })}</span>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#2a2d4d", marginBottom: 14 }}>Over: {item.functieTitel}</div>
+              {item.reacties.map((r, ri) => {
+                let gelijk = 0, hoger = 0, lager = 0;
+                item.skillsSnapshot.forEach(s => {
+                  const gevonden = r.reacties.find(x => x.tekst === s.tekst);
+                  const score = gevonden ? gevonden.score : 3;
+                  const v = score - s.eigenNiveau;
+                  if (v === 0) gelijk++; else if (v > 0) hoger++; else lager++;
+                });
+                return (
+                  <div key={ri} style={{ marginBottom: 22 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "#3c3f6b", marginBottom: 10 }}>
+                      Feedback van {r.naam_feedbackgever}
+                      <span style={{ fontWeight: 400, color: "#6a6d8f" }}> · {new Date(r.aangemaakt_op).toLocaleDateString("nl-NL", { day: "numeric", month: "long", year: "numeric" })}</span>
+                    </div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+                      <TelPil aantal={gelijk} label="zelfde beeld" kleur="#43477e" bg="rgba(146,153,214,0.20)" />
+                      <TelPil aantal={hoger} label="sterker gezien" kleur="#2f6b45" bg="rgba(74,138,92,0.16)" />
+                      <TelPil aantal={lager} label="ontwikkelpunt" kleur="#89591b" bg="rgba(199,138,47,0.18)" />
+                    </div>
+                    {item.skillsSnapshot.map((s, si) => {
+                      const gevonden = r.reacties.find(x => x.tekst === s.tekst);
+                      const feedbackScore = gevonden ? gevonden.score : 3;
+                      return (
+                        <SkillVergelijk
+                          key={si}
+                          tekst={s.tekst}
+                          eigenNiveau={s.eigenNiveau}
+                          feedbackScore={feedbackScore}
+                          toelichting={gevonden?.toelichting}
+                          naam={r.naam_feedbackgever}
+                        />
+                      );
+                    })}
                   </div>
-                  {item.skillsSnapshot.map((s, si) => {
-                    const gevonden = r.reacties.find(x => x.tekst === s.tekst);
-                    const feedbackScore = gevonden ? gevonden.score : 3;
-                    return (
-                      <div key={si} style={{ background: "rgba(255,255,255,0.5)", borderRadius: 8, padding: "10px 14px", marginBottom: 8 }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: "#2a2d4d", marginBottom: 6 }}>{s.tekst}</div>
-                        <div style={{ fontSize: 11, color: "#3a3d5c", marginBottom: 3 }}>Jij: <strong>{NIVEAUS[s.eigenNiveau - 1]}</strong></div>
-                        <div style={{ fontSize: 11, color: "#3a3d5c" }}>{r.naam_feedbackgever}: <strong>{NIVEAUS[feedbackScore - 1]}</strong></div>
-                        {gevonden?.toelichting && <div style={{ fontSize: 11, color: "#6a6d8f", marginTop: 6, fontStyle: "italic" }}>"{gevonden.toelichting}"</div>}
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
+                );
+              })}
             </div>
           ))}
         </div>
@@ -1231,7 +1186,6 @@ function FeedbackStap({ alleFeedback }) {
     </div>
   );
 }
-
 function LaadScherm({ titel, tekst }) {
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 48, textAlign: "center", gap: 16 }}>
@@ -1241,7 +1195,6 @@ function LaadScherm({ titel, tekst }) {
     </div>
   );
 }
-
 // ─── Laatste stap: het complete skillsprofiel ──────────────────────────────────
 function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, drijfResultaat, ontwikkelAdvies, laden, genereerVerhaalEnTop5, verhaalFout, copyStory, copied, handOpslaan, saveStatus, escoMatchCount, nieuwCv, gaNaarStap, alleFeedback, haalAlleFeedbackOp }) {
   useEffect(() => {
@@ -1249,7 +1202,6 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
     if (!alleFeedback) haalAlleFeedbackOp();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
   const hardMap = new Map(), softMap = new Map();
   Object.values(functieSkills).forEach(taken => taken.forEach(t => {
     t.hardskills.forEach(s => hardMap.set(s.tekst, s));
@@ -1260,14 +1212,12 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
   const hobbyList = cvData.hobbySkills || [];
   const drijfTop3 = drijfResultaat ? [...drijfResultaat.gesorteerd].slice(0, 3) : null;
   const [toonFeedback, setToonFeedback] = useState(false);
-
   // Lavendelblauw, midden licht → randen donkerder, met een stevig 3D pop-effect
   const kaartStijl = {
     background: "radial-gradient(circle at 50% 38%, #f1f2fb 0%, #d3d6f0 55%, #a8ade0 100%)",
     boxShadow: "0 16px 36px rgba(92,98,160,0.4), 0 2px 0 rgba(255,255,255,0.6) inset",
     border: "1px solid #9299d6",
   };
-
   return (
     <div style={{ flex: 1, padding: "28px 32px", overflowY: "auto" }}>
       <style>{`
@@ -1279,12 +1229,9 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
         }
       `}</style>
       <div style={{ maxWidth: 760, margin: "0 auto" }}>
-
         <div style={{ textAlign: "center", marginBottom: 22 }}>
           <div className="skillsprofiel-titel" style={{ fontFamily: "Georgia,serif", fontSize: 28, fontWeight: 700, color: "#ffffff" }}>Skillsprofiel{cvData.naam ? ` ${cvData.naam}` : ""}</div>
-
         </div>
-
         {/* Jouw verhaal + top 5 — het hoogtepunt */}
         {laden && <LaadScherm titel="Jouw verhaal wordt geschreven…" tekst="We combineren je skills, drijfveren en ontwikkelrichting tot één overzicht." />}
         {!laden && verhaalFout && (
@@ -1316,7 +1263,6 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
             </Card>
           </>
         )}
-
         {/* Weten · Kunnen · Zijn · Willen */}
         <Card style={{ ...kaartStijl, marginBottom: 16 }}>
           <div style={{ display: "grid", gridTemplateColumns: "160px 1fr", gap: 20, alignItems: "start" }}>
@@ -1337,7 +1283,6 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
             </div>
           </div>
         </Card>
-
         {/* Drijfveren, indien ingevuld */}
         {drijfTop3 && (
           <Card style={{ ...kaartStijl, marginBottom: 16 }}>
@@ -1358,7 +1303,6 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
             )}
           </Card>
         )}
-
         {/* Alle skills, compact, in twee kolommen */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
           {hardList.length > 0 && (
@@ -1389,7 +1333,6 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
           )}
         </div>
         <p style={{ fontSize: 11, color: "#aaa", marginTop: -8, marginBottom: 16 }}>Niveau aanpassen? Ga terug naar de stap "Valideren".</p>
-
         {/* Opleiding & hobby's */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 16 }}>
           <Card style={kaartStijl}>
@@ -1404,20 +1347,17 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
             {hobbyList.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{hobbyList.map((item, i) => <EscoSkillPill key={i} item={item} bg="#eef2ff" col="#3730a3" />)}</div>}
           </Card>
         </div>
-
         {(!drijfResultaat || !ontwikkelAdvies) && (
           <div style={{ padding: "14px 18px", background: KLEUR.papier, borderRadius: 8, border: `1px dashed ${KLEUR.lijn}`, fontSize: 12, color: "#777", lineHeight: 1.6, marginBottom: 16 }}>
             {!drijfResultaat && <div>Je hebt de Drijfveren nog niet ingevuld. <button onClick={() => gaNaarStap("drijfveren")} style={{ background: "none", border: "none", color: KLEUR.messingDonker, fontWeight: 600, cursor: "pointer", textDecoration: "underline", fontFamily: "inherit", padding: 0 }}>Alsnog invullen →</button></div>}
             {!ontwikkelAdvies && <div style={{ marginTop: 6 }}>Je hebt nog geen ontwikkelrichting ingevuld. <button onClick={() => gaNaarStap("ontwikkelen")} style={{ background: "none", border: "none", color: KLEUR.messingDonker, fontWeight: 600, cursor: "pointer", textDecoration: "underline", fontFamily: "inherit", padding: 0 }}>Alsnog invullen →</button></div>}
           </div>
         )}
-
         <div className="niet-printen" style={{ textAlign: "center", padding: "10px 0 20px" }}>
           <button onClick={() => gaNaarStap("vergelijken")} style={{ padding: "13px 28px", borderRadius: 6, background: KLEUR.inkt, color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
             Volgende stap: vergelijk met een functie →
           </button>
         </div>
-
         <div className="niet-printen" style={{ display: "flex", justifyContent: "center", gap: 18, alignItems: "center", marginTop: 10, paddingTop: 18, borderTop: "1px solid rgba(244,241,232,0.12)" }}>
           <button onClick={() => window.print()} style={{ background: "none", border: "none", color: "#8a94a0", fontSize: 12, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }}>🖨️ Print / bewaar als PDF</button>
           <button onClick={nieuwCv} style={{ background: "none", border: "none", color: "#8a94a0", fontSize: 12, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }}>↩ Begin opnieuw met een ander CV</button>
@@ -1433,26 +1373,21 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
     </div>
   );
 }
-
 // ─── Stap: vergelijk je skills met een functie ─────────────────────────────────
 function VergelijkStap({ functiesLijst, functiesLaden, laadFuncties, gekozenVergelijkFunctie, setGekozenVergelijkFunctie, berekenGap, gapResultaat, gapLaden, gaNaarStap }) {
   useEffect(() => {
     if (functiesLijst.length === 0 && !functiesLaden) laadFuncties();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
   return (
     <div style={{ flex: 1, padding: "28px 32px", overflowY: "auto" }}>
       <div style={{ maxWidth: 700, margin: "0 auto" }}>
         <div style={{ fontFamily: "Georgia,serif", fontSize: 22, fontWeight: 600, color: "#fff", marginBottom: 8 }}>Vergelijk met een functie</div>
         <p style={{ fontSize: 13, color: "#c4cdd4", lineHeight: 1.6, marginBottom: 20 }}>Kies een functie om je skillsprofiel mee te vergelijken. Zo zie je precies wat je al kan, en wat je nog zou kunnen ontwikkelen.</p>
-
         {functiesLaden && <LaadScherm titel="Functies worden opgehaald…" tekst="" />}
-
         {!functiesLaden && functiesLijst.length === 0 && (
           <Card><p style={{ fontSize: 13, color: "#888" }}>Er staan nog geen functieprofielen in het systeem om mee te vergelijken.</p></Card>
         )}
-
         {!functiesLaden && functiesLijst.length > 0 && (
           <>
             <Card style={{ marginBottom: 20 }}>
@@ -1464,7 +1399,6 @@ function VergelijkStap({ functiesLijst, functiesLaden, laadFuncties, gekozenVerg
                 {gapLaden ? "Bezig…" : "Vergelijk →"}
               </button>
             </Card>
-
             {gapResultaat && (
               <>
                 <Card style={{ marginBottom: 16 }}>
@@ -1491,7 +1425,6 @@ function VergelijkStap({ functiesLijst, functiesLaden, laadFuncties, gekozenVerg
     </div>
   );
 }
-
 // ─── Stap: roadmap maken op basis van de skillsgap ─────────────────────────────
 function RoadmapStap({ gapResultaat, maakRoadmap, roadmapLaden, roadmapOpgeslagen, functieTitel, gaNaarStap, toekomstblik, toekomstLaden, genereerToekomstblik }) {
   if (!gapResultaat || gapResultaat.missing.length === 0) {
@@ -1502,13 +1435,11 @@ function RoadmapStap({ gapResultaat, maakRoadmap, roadmapLaden, roadmapOpgeslage
       </div>
     );
   }
-
   return (
     <div style={{ flex: 1, padding: "28px 32px", overflowY: "auto" }}>
       <div style={{ maxWidth: 700, margin: "0 auto" }}>
         <div style={{ fontFamily: "Georgia,serif", fontSize: 22, fontWeight: 600, color: "#ffffff", marginBottom: 8 }}>Jouw roadmap{functieTitel ? ` naar ${functieTitel}` : ""}</div>
         <p style={{ fontSize: 13, color: "#c4cdd4", lineHeight: 1.6, marginBottom: 20 }}>Dit zijn de concrete stappen die je kan zetten. Sla ze op om je voortgang bij te houden.</p>
-
         <Card style={{ marginBottom: 20 }}>
           {gapResultaat.missing.map((s, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 0", borderBottom: i < gapResultaat.missing.length - 1 ? `1px solid ${KLEUR.lijn}` : "none" }}>
@@ -1517,7 +1448,6 @@ function RoadmapStap({ gapResultaat, maakRoadmap, roadmapLaden, roadmapOpgeslage
             </div>
           ))}
         </Card>
-
         <Card style={{ marginBottom: 20 }}>
           <SectionTitle>Blik op de toekomst van dit vakgebied</SectionTitle>
           {!toekomstblik && !toekomstLaden && (
@@ -1539,7 +1469,6 @@ function RoadmapStap({ gapResultaat, maakRoadmap, roadmapLaden, roadmapOpgeslage
             </>
           )}
         </Card>
-
         {!roadmapOpgeslagen ? (
           <button onClick={maakRoadmap} disabled={roadmapLaden} style={{ padding: "13px 28px", borderRadius: 6, background: KLEUR.inkt, color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
             {roadmapLaden ? "Bezig…" : "Roadmap opslaan →"}
@@ -1553,14 +1482,12 @@ function RoadmapStap({ gapResultaat, maakRoadmap, roadmapLaden, roadmapOpgeslage
     </div>
   );
 }
-
 // ─── Radar-diagram: zelfbeoordeling vs. feedback van een collega ──────────────
 function RadarDiagram({ skills, eigenScores, feedbackScores, size = 280 }) {
   const n = skills.length;
   if (n < 3) return null; // een radar heeft minimaal 3 punten nodig om iets te tonen
   const midden = size / 2;
   const straal = size / 2 - 50;
-
   function punt(index, waarde) {
     const hoek = (Math.PI * 2 * index) / n - Math.PI / 2;
     const r = (waarde / 5) * straal;
@@ -1570,10 +1497,8 @@ function RadarDiagram({ skills, eigenScores, feedbackScores, size = 280 }) {
     const hoek = (Math.PI * 2 * index) / n - Math.PI / 2;
     return [midden + (straal + 30) * Math.cos(hoek), midden + (straal + 30) * Math.sin(hoek)];
   }
-
   const eigenPad = skills.map((s, i) => punt(i, eigenScores[i]).join(",")).join(" ");
   const feedbackPad = feedbackScores ? skills.map((s, i) => punt(i, feedbackScores[i]).join(",")).join(" ") : null;
-
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
       {[1, 2, 3, 4, 5].map(r => (
@@ -1586,7 +1511,6 @@ function RadarDiagram({ skills, eigenScores, feedbackScores, size = 280 }) {
     </svg>
   );
 }
-
 // ─── Openbare feedbackpagina (geen login nodig) ─────────────────────────────
 function FeedbackPagina({ token }) {
   const [verzoek, setVerzoek] = useState(null);
@@ -1597,7 +1521,6 @@ function FeedbackPagina({ token }) {
   const [toelichtingen, setToelichtingen] = useState({});
   const [verzonden, setVerzonden] = useState(false);
   const [versturen, setVersturen] = useState(false);
-
   useEffect(() => {
     async function laadVerzoek() {
       const { data, error } = await supabase.from("feedback_verzoeken").select("*").eq("token", token).maybeSingle();
@@ -1611,7 +1534,6 @@ function FeedbackPagina({ token }) {
     }
     laadVerzoek();
   }, [token]);
-
   async function versturenFeedback() {
     if (!naam.trim()) return;
     setVersturen(true);
@@ -1620,15 +1542,12 @@ function FeedbackPagina({ token }) {
     if (!error) setVerzonden(true);
     setVersturen(false);
   }
-
   if (laden) return <div style={{ minHeight: "100vh", background: KLEUR.papier, display: "flex", alignItems: "center", justifyContent: "center" }}><Spinner /></div>;
-
   if (fout) return (
     <div style={{ minHeight: "100vh", background: KLEUR.papier, display: "flex", alignItems: "center", justifyContent: "center", padding: 32 }}>
       <p style={{ fontSize: 14, color: "#991b1b" }}>⚠️ {fout}</p>
     </div>
   );
-
   if (verzonden) return (
     <div style={{ minHeight: "100vh", background: KLEUR.papier, display: "flex", alignItems: "center", justifyContent: "center", padding: 32 }}>
       <div style={{ textAlign: "center" }}>
@@ -1638,7 +1557,6 @@ function FeedbackPagina({ token }) {
       </div>
     </div>
   );
-
   return (
     <div style={{ minHeight: "100vh", background: KLEUR.papier, fontFamily: "'Segoe UI',sans-serif", padding: "32px 20px" }}>
       <div style={{ maxWidth: 600, margin: "0 auto" }}>
@@ -1648,13 +1566,11 @@ function FeedbackPagina({ token }) {
             Je collega heeft zelf een inschatting gemaakt van de skills die horen bij de taken van zijn of haar huidige functie. Hieronder staan die taken en skills. Geef per skill aan hoe goed jij denkt dat je collega dit beheerst, van Beginner tot Expert, en licht dat kort toe als je dat wilt. Zo krijgt je collega, naast het eigen beeld, ook jouw blik erbij, voor een completer en eerlijker totaalbeeld.
           </p>
         </div>
-
         <div style={{ background: "#fff", borderRadius: 10, border: `1px solid ${KLEUR.lijn}`, padding: "20px 24px", marginBottom: 20 }}>
           <label style={{ fontSize: 13, color: "#555", display: "block", marginBottom: 6 }}>Jouw naam</label>
           <input type="text" value={naam} onChange={e => setNaam(e.target.value)} placeholder="Bijv. Jan de Vries"
             style={{ width: "100%", padding: "10px 14px", borderRadius: 6, border: "1px solid #d0cfc8", fontSize: 14, fontFamily: "inherit", boxSizing: "border-box" }} />
         </div>
-
         {verzoek.skills.map((s, i) => (
           <div key={i} style={{ background: "#fff", borderRadius: 10, border: `1px solid ${KLEUR.lijn}`, padding: "18px 22px", marginBottom: 14 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: KLEUR.inkt, marginBottom: 10 }}>{s.tekst}</div>
@@ -1663,7 +1579,6 @@ function FeedbackPagina({ token }) {
               placeholder="Toelichting (optioneel)" style={{ width: "100%", marginTop: 10, padding: "8px 12px", borderRadius: 6, border: "1px solid #d0cfc8", fontSize: 13, fontFamily: "inherit", minHeight: 50, boxSizing: "border-box" }} />
           </div>
         ))}
-
         <button onClick={versturenFeedback} disabled={!naam.trim() || versturen} style={{ padding: "13px 28px", borderRadius: 6, background: !naam.trim() ? "#ccc" : KLEUR.inkt, color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: !naam.trim() ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
           {versturen ? "Bezig…" : "Feedback versturen →"}
         </button>
@@ -1671,12 +1586,9 @@ function FeedbackPagina({ token }) {
     </div>
   );
 }
-
 // ─── Prompts ──────────────────────────────────────────────────────────────────
 const CV_PROMPT = `Je bent een expert loopbaancoach en CV-analist. Analyseer het meegestuurde CV grondig.
-
 Retourneer ALLEEN een JSON-object (geen uitleg, geen markdown backticks) met EXACT deze structuur:
-
 {
   "naam": "",
   "functies": [{"titel":"","bedrijf":"","periode":"","taken":["","","","",""]}],
@@ -1690,7 +1602,6 @@ Retourneer ALLEEN een JSON-object (geen uitleg, geen markdown backticks) met EXA
   "hobbies": [""],
   "hobbySkills": ["","",""]
 }
-
 Regels:
 - "naam": de volledige naam van de persoon zoals die bovenaan het CV staat. Leeg laten als niet te vinden.
 - Haal maximaal 8 functies op uit het CV (de meest recente/relevante als er meer zijn).
@@ -1700,51 +1611,39 @@ Regels:
 - Genereer GEEN verhaal en GEEN top5, dat gebeurt in een latere stap.
 - ontbrekende info = lege array []
 - UITSLUITEND het JSON-object retourneren`;
-
 function takenPrompt(functie) {
   return `Je bent een loopbaanexpert. Genereer een realistische lijst van taken voor de volgende functie.
-
 Functietitel: "${functie.titel}"
 Bedrijf/context: "${functie.bedrijf}"
 Taken die al uit het CV blijken: ${JSON.stringify(functie.taken || [])}
-
 Genereer een lijst van precies 8 taken in totaal:
 - Neem de taken uit het CV letterlijk of licht herschreven over, met "bron": "cv"
 - Vul aan met taken die gebruikelijk zijn voor dit beroep, met "bron": "beroep"
 - Wees zo specifiek/fijnmazig mogelijk
-
 Antwoord ALLEEN met dit JSON-object (geen backticks):
 {"taken": [{"taak": "", "bron": "cv"}, {"taak": "", "bron": "beroep"}]}`;
 }
-
 function skillsPerTaakPrompt(functieTitel, taken) {
   return `Je bent een skills-expert. Voor de functie "${functieTitel}" krijg je een lijst met taken. Bepaal per taak welke concrete hardskills (vakinhoudelijk) en softskills (persoonlijk/sociaal) hierbij nodig zijn.
-
 Taken:
 ${taken.map((t, i) => `${i + 1}. ${t}`).join("\n")}
-
 Regels:
 - Per taak: 1-3 hardskills en 0-2 softskills
 - Wees zo specifiek mogelijk
 - Gebruik korte, concrete termen
-
 Antwoord ALLEEN met dit JSON-object (geen backticks):
 {"taken": [{"taak":"<exacte taaktekst>", "hardskills":["",""], "softskills":[""]}]}`;
 }
-
 function verhaalTop5Prompt(cvData, skillsMetNiveau, drijfSamenvatting, ontwikkelSamenvatting) {
   return `Je bent een loopbaancoach. Schrijf een persoonlijk verhaal IN DE JIJ-VORM (dus "Jij bent...", NIET "Ik ben...") gebaseerd op onderstaande bronnen.
-
 Functies: ${(cvData.functies || []).map(f => f.titel).join(", ")}
 Skills met zelfbeoordeeld niveau: ${JSON.stringify(skillsMetNiveau)}
 ${drijfSamenvatting ? `Drijfveren: ${drijfSamenvatting}` : "Geen drijfverentest beschikbaar."}
 ${ontwikkelSamenvatting ? `Ontwikkelrichting: ${ontwikkelSamenvatting}` : "Geen ontwikkelrichting beschikbaar."}
-
 Regels:
 - Schrijf ALTIJD in de jij-vorm
 - Als er meer dan alleen skills beschikbaar is, verwijs daar expliciet naar in "bronnenGebruikt" en laat dit doorklinken in het verhaal
 - Top5: kies bij voorkeur skills met een hoog zelfbeoordeeld niveau (Gevorderd/Expert), aangevuld met opvallende overige skills
-
 Antwoord ALLEEN met dit JSON (geen backticks):
 {
   "bronnenGebruikt": "Korte zin over welke bronnen gebruikt zijn.",
@@ -1752,26 +1651,20 @@ Antwoord ALLEEN met dit JSON (geen backticks):
   "top5": [{"skill":"","toelichting":""}]
 }`;
 }
-
 function toekomstPrompt(functieTitel) {
   return `Je bent een arbeidsmarktexpert. Geef een algemene inschatting (geen harde voorspelling) van hoe het vakgebied van "${functieTitel}" er de komende jaren waarschijnlijk uit gaat zien, en welke skills daardoor belangrijker zouden kunnen worden.
-
 Regels:
 - Precies 3 punten
 - Kort en concreet, geen vage algemeenheden
 - Wees eerlijk over onzekerheid, dit zijn algemene trends, geen garanties
-
 Antwoord ALLEEN met dit JSON (geen backticks):
 {"punten": ["", "", ""]}`;
 }
-
 function drijfverenPrompt(scores, top3) {
   const labels = Object.entries(scores).map(([k, v]) => `${DRIJFVEER_TYPES[k].label}: ${v}/5`).join(", ");
   return `Je bent een loopbaancoach. Schrijf een warm, persoonlijk drijfverenprofiel in het Nederlands.
-
 Scores: ${labels}
 Sterkste drijfveren: ${top3}
-
 Geef je antwoord als JSON (geen backticks):
 {
   "intro": "Persoonlijke intro over de sterkste drijfveren, gewone taal, geen vakjargon. (2-3 zinnen)",
@@ -1780,17 +1673,12 @@ Geef je antwoord als JSON (geen backticks):
   "tip": "Concrete loopbaantip. (2 zinnen)"
 }`;
 }
-
 function ontwikkelPrompt(cvSamenvatting, drijfSamenvatting, doel) {
   return `Je bent een ervaren loopbaancoach. Maak een concreet, persoonlijk ontwikkeladvies.
-
 ${cvSamenvatting}
 ${drijfSamenvatting}
-
 Ontwikkeldoel (kan vaag/kort zijn): "${doel}"
-
 Belangrijk: als het ontwikkeldoel vaag of summier is, vul dit dan zelf actief aan, geef een concreet voorstel in plaats van te wachten op meer input.
-
 Retourneer ALLEEN dit JSON-object (geen backticks):
 {
   "richting": "Aanbevolen ontwikkelrichting (max 8 woorden)",
