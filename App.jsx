@@ -229,7 +229,7 @@ function SkillsModel({ size = 220 }) {
         <circle cx="110" cy="110" r="34" fill="url(#skillsKern)" stroke={kleurDonker} strokeWidth="1" />
       </g>
 
-      <text x="110" y="115" textAnchor="middle" fontFamily="Georgia,serif" fontWeight="700" fontSize="16" fill={kleurDonker}>skills</text>
+      <text x="110" y="115" textAnchor="middle" fontFamily="Georgia,serif" fontWeight="700" fontSize="19" fill={kleurDonker}>skills</text>
 
       {/* Gebogen labels rondom */}
       <path id="boogLinksBoven" d="M 30 110 A 80 80 0 0 1 110 30" fill="none" />
@@ -237,24 +237,19 @@ function SkillsModel({ size = 220 }) {
       <path id="boogRechtsOnder" d="M 190 110 A 80 80 0 0 1 110 190" fill="none" />
       <path id="boogLinksOnder" d="M 110 190 A 80 80 0 0 1 30 110" fill="none" />
 
-      <text fontFamily="Georgia,serif" fontWeight="700" fontSize="15" fill={kleurDonker}>
+      <text fontFamily="Georgia,serif" fontWeight="700" fontSize="18" fill={kleurDonker}>
         <textPath href="#boogLinksBoven" startOffset="50%" textAnchor="middle">weten</textPath>
       </text>
-      <text fontFamily="Georgia,serif" fontWeight="700" fontSize="15" fill={kleurDonker}>
+      <text fontFamily="Georgia,serif" fontWeight="700" fontSize="18" fill={kleurDonker}>
         <textPath href="#boogRechtsBoven" startOffset="50%" textAnchor="middle">kunnen</textPath>
       </text>
-      <text fontFamily="Georgia,serif" fontWeight="700" fontSize="15" fill={kleurDonker}>
+      <text fontFamily="Georgia,serif" fontWeight="700" fontSize="18" fill={kleurDonker}>
         <textPath href="#boogRechtsOnder" startOffset="50%" textAnchor="middle">willen</textPath>
       </text>
-      <text fontFamily="Georgia,serif" fontWeight="700" fontSize="15" fill={kleurDonker}>
+      <text fontFamily="Georgia,serif" fontWeight="700" fontSize="18" fill={kleurDonker}>
         <textPath href="#boogLinksOnder" startOffset="50%" textAnchor="middle">zijn</textPath>
       </text>
 
-      {/* Kleine binnen-labels per kwadrant */}
-      <text x="72" y="72" textAnchor="middle" fontSize="9" fill="#fff" opacity="0.9">kennis</text>
-      <text x="148" y="72" textAnchor="middle" fontSize="9" fill="#fff" opacity="0.9">vaardigheden</text>
-      <text x="72" y="152" textAnchor="middle" fontSize="9" fill="#fff" opacity="0.9">persoonskenmerken</text>
-      <text x="148" y="152" textAnchor="middle" fontSize="9" fill="#fff" opacity="0.9">motivatie</text>
     </svg>
   );
 }
@@ -1212,8 +1207,8 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
 
         {/* Weten · Kunnen · Zijn · Willen */}
         <Card style={{ marginBottom: 16 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "160px 1fr", gap: 20, alignItems: "start" }}>
-            <SkillsModel size={150} />
+          <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 24, alignItems: "start" }}>
+            <SkillsModel size={210} />
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
               {[
                 { key: "weten", label: "Weten", sub: "Kennis" },
