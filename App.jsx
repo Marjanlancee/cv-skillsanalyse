@@ -1215,6 +1215,13 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
   const hobbyList = cvData.hobbySkills || [];
   const drijfTop3 = drijfResultaat ? [...drijfResultaat.gesorteerd].slice(0, 3) : null;
 
+  // Lavendelblauw, midden licht → randen donkerder, met een stevig 3D pop-effect
+  const kaartStijl = {
+    background: "radial-gradient(circle at 50% 38%, #f1f2fb 0%, #d3d6f0 55%, #a8ade0 100%)",
+    boxShadow: "0 16px 36px rgba(92,98,160,0.4), 0 2px 0 rgba(255,255,255,0.6) inset",
+    border: "1px solid #9299d6",
+  };
+
   return (
     <div style={{ flex: 1, padding: "28px 32px", overflowY: "auto" }}>
       <style>{`
@@ -1243,20 +1250,20 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
         {!laden && cvData.verhaal && (
           <>
             {(cvData.top5?.length > 0) && (
-              <div style={{ background: "linear-gradient(160deg,#eef4fb,#e3edf7)", borderRadius: 12, padding: 30, marginBottom: 22, boxShadow: "0 8px 30px rgba(47,102,144,0.15)", border: "1px solid #c7dcf0" }}>
-                <div style={{ fontSize: 11, color: "#2f6690", letterSpacing: "1px", textTransform: "uppercase", textAlign: "center", marginBottom: 6 }}>Hier blink jij in uit</div>
-                <div style={{ fontFamily: "Georgia,serif", fontSize: 21, fontWeight: 600, color: KLEUR.inkt, marginBottom: 20, textAlign: "center" }}>Jouw top 5 skills</div>
+              <div style={{ ...kaartStijl, borderRadius: 12, padding: 30, marginBottom: 22 }}>
+                <div style={{ fontSize: 11, color: "#5c62a0", letterSpacing: "1px", textTransform: "uppercase", textAlign: "center", marginBottom: 6 }}>Hier blink jij in uit</div>
+                <div style={{ fontFamily: "Georgia,serif", fontSize: 21, fontWeight: 600, color: "#3c3f6b", marginBottom: 20, textAlign: "center" }}>Jouw top 5 skills</div>
                 {cvData.top5.map((item, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 14 }}>
-                    <div style={{ width: 26, height: 26, borderRadius: 6, background: "rgba(47,102,144,0.15)", color: "#2f6690", fontWeight: 700, fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{i + 1}</div>
-                    <div style={{ fontSize: 14, color: "#3a4650", lineHeight: 1.6 }}><span style={{ fontWeight: 600, color: KLEUR.inkt }}>{item.skill}</span>: {item.toelichting}</div>
+                    <div style={{ width: 26, height: 26, borderRadius: 6, background: "rgba(92,98,160,0.2)", color: "#3c3f6b", fontWeight: 700, fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{i + 1}</div>
+                    <div style={{ fontSize: 14, color: "#3a3d5c", lineHeight: 1.6 }}><span style={{ fontWeight: 600, color: "#2a2d4d" }}>{item.skill}</span>: {item.toelichting}</div>
                   </div>
                 ))}
               </div>
             )}
             {cvData.verhaalBronnen && <p style={{ fontSize: 12, color: "#c4cdd4", fontStyle: "italic", marginBottom: 14, textAlign: "center" }}>{cvData.verhaalBronnen}</p>}
             <div style={{ fontFamily: "Georgia,serif", fontSize: 18, fontWeight: 600, color: "#fff", marginBottom: 12 }}>Jouw verhaal</div>
-            <Card style={{ marginBottom: 24 }}>
+            <Card style={{ ...kaartStijl, marginBottom: 24 }}>
               {[cvData.verhaal?.alinea1, cvData.verhaal?.alinea2, cvData.verhaal?.alinea3].filter(Boolean).map((p, i, arr) => (
                 <p key={i} style={{ fontSize: 15, color: "#333", lineHeight: 1.85, marginBottom: i < arr.length - 1 ? 18 : 0 }}>{p}</p>
               ))}
@@ -1265,7 +1272,7 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
         )}
 
         {/* Weten · Kunnen · Zijn · Willen */}
-        <Card style={{ marginBottom: 16 }}>
+        <Card style={{ ...kaartStijl, marginBottom: 16 }}>
           <div style={{ display: "grid", gridTemplateColumns: "160px 1fr", gap: 20, alignItems: "start" }}>
             <SkillsModel />
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
@@ -1287,7 +1294,7 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
 
         {/* Drijfveren, indien ingevuld */}
         {drijfTop3 && (
-          <Card style={{ marginBottom: 16 }}>
+          <Card style={{ ...kaartStijl, marginBottom: 16 }}>
             <SectionTitle>Jouw drijfveren</SectionTitle>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               {drijfTop3.map(([k], i) => { const t = DRIJFVEER_TYPES[k]; return (
@@ -1303,7 +1310,7 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
         {/* Alle skills, compact, in twee kolommen */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
           {hardList.length > 0 && (
-            <Card>
+            <Card style={kaartStijl}>
               <SectionTitle>Hardskills ({hardList.length})</SectionTitle>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                 {hardList.map(item => (
@@ -1316,7 +1323,7 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
             </Card>
           )}
           {softList.length > 0 && (
-            <Card>
+            <Card style={kaartStijl}>
               <SectionTitle>Softskills ({softList.length})</SectionTitle>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                 {softList.map(item => (
@@ -1333,12 +1340,12 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
 
         {/* Opleiding & hobby's */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 16 }}>
-          <Card>
+          <Card style={kaartStijl}>
             <SectionTitle>Opleidingen & cursussen</SectionTitle>
             {!(cvData.opleidingen?.length) && <p style={{ fontSize: 13, color: "#888" }}>Niets gevonden.</p>}
             {(cvData.opleidingen || []).map((o, i) => (<div key={i} style={{ marginBottom: 12, paddingBottom: 12, borderBottom: i < cvData.opleidingen.length - 1 ? `1px solid ${KLEUR.lijn}` : "none" }}><div style={{ fontSize: 14, fontWeight: 500, color: KLEUR.inkt }}>{o.naam}</div><div style={{ fontSize: 12, color: "#888", marginTop: 2 }}>{[o.instelling, o.jaar].filter(Boolean).join(" · ")}</div></div>))}
           </Card>
-          <Card>
+          <Card style={kaartStijl}>
             <SectionTitle>Hobby's & interesses</SectionTitle>
             {!(cvData.hobbies?.length) && <p style={{ fontSize: 13, color: "#888" }}>Niets gevonden.</p>}
             <div style={{ marginBottom: 12 }}>{(cvData.hobbies || []).map((h, i) => <span key={i} style={{ fontSize: 13, padding: "6px 14px", borderRadius: 6, background: KLEUR.papier, color: "#444", border: `1px solid ${KLEUR.lijn}`, fontWeight: 500, display: "inline-block", margin: "0 6px 6px 0" }}>{h}</span>)}</div>
@@ -1586,7 +1593,7 @@ function FeedbackPagina({ token }) {
         <div style={{ background: "#fff", borderRadius: 10, border: `1px solid ${KLEUR.lijn}`, padding: "28px 30px", marginBottom: 20 }}>
           <div style={{ fontFamily: "Georgia,serif", fontSize: 20, fontWeight: 700, color: KLEUR.inkt, marginBottom: 10 }}>Feedback gevraagd op: {verzoek.functie_titel}</div>
           <p style={{ fontSize: 13, color: "#555", lineHeight: 1.7 }}>
-            Een collega heeft zichzelf beoordeeld op de skills die bij deze functie horen, en wil graag jouw kijk daarop. Geef per skill aan hoe jij dit ziet (van Beginner tot Expert), en licht het kort toe als je dat wilt. Dit helpt je collega om een eerlijker beeld te krijgen van waar hij of zij staat.
+            Je collega heeft zelf een inschatting gemaakt van de skills die horen bij de taken van zijn of haar huidige functie. Hieronder staan die taken en skills. Geef per skill aan hoe goed jij denkt dat je collega dit beheerst, van Beginner tot Expert, en licht dat kort toe als je dat wilt. Zo krijgt je collega, naast het eigen beeld, ook jouw blik erbij, voor een completer en eerlijker totaalbeeld.
           </p>
         </div>
 
