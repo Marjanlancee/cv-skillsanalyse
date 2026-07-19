@@ -669,11 +669,32 @@ export default function App() {
   const huidigVraag = drijfStap >= 1 && drijfStap <= DRIJFVEER_VRAGEN.length ? DRIJFVEER_VRAGEN[drijfStap - 1] : null;
   const alleBeantwoord = Object.keys(antwoorden).length === DRIJFVEER_VRAGEN.length;
 
-  if (sessieAanHetLaden) return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: KLEUR.papier }}><Spinner /></div>;
+  const sterrenCSS = `
+    .sterrenhemel {
+      background-color: #0a121c;
+      background-image:
+        radial-gradient(1.5px 1.5px at 20px 30px, rgba(255,255,255,0.75), transparent),
+        radial-gradient(1px 1px at 90px 40px, rgba(255,255,255,0.55), transparent),
+        radial-gradient(1.5px 1.5px at 130px 80px, rgba(255,255,255,0.65), transparent),
+        radial-gradient(1px 1px at 160px 120px, rgba(255,255,255,0.45), transparent),
+        radial-gradient(2px 2px at 50px 160px, rgba(255,255,255,0.6), transparent),
+        radial-gradient(1px 1px at 190px 10px, rgba(255,255,255,0.45), transparent),
+        radial-gradient(1px 1px at 10px 190px, rgba(255,255,255,0.5), transparent),
+        linear-gradient(180deg, #0a121c 0%, #16232f 55%, #1e2a35 100%);
+      background-repeat: repeat;
+      background-size: 220px 220px, 220px 220px, 220px 220px, 220px 220px, 220px 220px, 220px 220px, 220px 220px, 100% 100%;
+    }
+    @media print {
+      .sterrenhemel { background: #fff !important; background-image: none !important; }
+    }
+  `;
+
+  if (sessieAanHetLaden) return <div className="sterrenhemel" style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}><style>{sterrenCSS}</style><Spinner /></div>;
 
   if (!sessie) {
     return (
-      <div style={{ fontFamily: "'Segoe UI',sans-serif", minHeight: "100vh", background: KLEUR.papier, display: "flex", flexDirection: "column" }}>
+      <div className="sterrenhemel" style={{ fontFamily: "'Segoe UI',sans-serif", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+        <style>{sterrenCSS}</style>
         <Kop sessie={null} />
         <LoginScherm onIngelogd={setSessie} />
       </div>
@@ -681,9 +702,14 @@ export default function App() {
   }
 
   return (
-    <div style={{ fontFamily: "'Segoe UI',sans-serif", minHeight: "100vh", background: KLEUR.papier, display: "flex", flexDirection: "column" }}>
+    <div className="sterrenhemel" style={{ fontFamily: "'Segoe UI',sans-serif", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      <style>{sterrenCSS}</style>
       <Kop sessie={sessie} onUitloggen={() => supabase.auth.signOut()} />
       <Stappenbalk huidigeStap={stap} hoogsteBezochte={hoogsteBezochte} voltooidValideren={voltooidValideren} gaNaar={gaNaarStap} />
+      <div className="niet-printen" style={{ position: "fixed", bottom: 10, right: 16, display: "flex", alignItems: "center", gap: 6, zIndex: 50 }}>
+        <span style={{ fontSize: 11, color: "rgba(244,241,232,0.5)" }}>Powered by</span>
+        <img src="/logo-bright-dark.png" alt="Bright Work Solutions" style={{ height: 16, opacity: 0.85 }} />
+      </div>
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
 
@@ -696,7 +722,7 @@ export default function App() {
                 Upload je CV. Wij lezen 'm en zoeken uit wat je allemaal kan, jij hoeft niks over te typen.
               </p>
               <p style={{ fontSize: 12, color: "#888", lineHeight: 1.65, marginBottom: 28, maxWidth: 400, marginLeft: "auto", marginRight: "auto", fontStyle: "italic" }}>
-                Je leert je hele leven skills: op school, maar net zo goed thuis en op je werk. Een diploma is waardevol, maar vertelt maar een deel van het verhaal. Heb je "alleen maar" een praktijkopleiding gedaan? De kans is groot dat je op de werkvloer veel meer hebt geleerd dan je zelf beseft.
+                Je leert je hele leven skills: op school, maar net zo goed thuis en op je werk. Een diploma is waardevol, maar vertelt maar een deel van het verhaal. Op de werkvloer heb je vaak veel meer geleerd dan je zelf beseft, en dat brengen we hier in kaart.
               </p>
               <div onClick={() => fileInputRef.current.click()} onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={e => { e.preventDefault(); setDragging(false); handleFile(e.dataTransfer.files[0]); }}
                 style={{ background: dragging ? "#fffef5" : "linear-gradient(180deg,#fff,#fffdf5)", borderRadius: 10, border: `2px dashed ${dragging ? KLEUR.messing : "#e3d9a8"}`, padding: "44px 36px", textAlign: "center", cursor: "pointer", boxShadow: "0 8px 30px rgba(184,134,63,0.12)" }}>
@@ -726,8 +752,8 @@ export default function App() {
           <div style={{ flex: 1, display: "flex", justifyContent: "center", padding: 32, overflowY: "auto" }}>
             <div style={{ maxWidth: 600, width: "100%" }}>
               <div style={{ fontFamily: "Georgia,serif", fontSize: 22, fontWeight: 600, color: KLEUR.inkt, marginBottom: 8 }}>Welke functies wil je uitwerken?</div>
-              <p style={{ fontSize: 13, color: "#666", lineHeight: 1.6, marginBottom: 20 }}>
-                We hebben deze functies in je CV gevonden. Je huidige functie staat al aangevinkt. Vink er gerust meer aan waar je goed in was of die je leuk vond, maar dat hoeft niet. Zo'n 3 functies geeft meestal een compleet beeld.
+              <p style={{ fontSize: 13, color: "#b8c2ca", lineHeight: 1.6, marginBottom: 20 }}>
+                We hebben deze functies in je CV gevonden. Je huidige functie staat al aangevinkt. Vink er gerust meer aan waar je goed in was of die je leuk vond, maar dat hoeft niet. Zo'n 3 functies geeft meestal een compleet beeld. Straks ga je per functie je skills waarderen, dus hoe meer functies je hier kiest, hoe meer werk dat zo meteen is.
               </p>
               {(cvData.functies || []).map((f, i) => (
                 <div key={i} onClick={() => toggleFunctie(i)} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "14px 16px", borderRadius: 8, border: geselecteerdeFuncties.has(i) ? `2px solid ${KLEUR.messing}` : `2px solid ${KLEUR.lijn}`, background: geselecteerdeFuncties.has(i) ? "#fbf6ea" : "#fff", marginBottom: 10, cursor: "pointer" }}>
@@ -756,7 +782,7 @@ export default function App() {
           <div style={{ flex: 1, padding: "28px 32px", overflowY: "auto" }}>
             <div style={{ maxWidth: 700, margin: "0 auto" }}>
               <div style={{ fontFamily: "Georgia,serif", fontSize: 21, fontWeight: 600, color: KLEUR.inkt, marginBottom: 8 }}>Check je taken</div>
-              <p style={{ fontSize: 13, color: "#666", marginBottom: 20, lineHeight: 1.6 }}>Alles staat al aangevinkt. Vink uit wat jij nooit doet, de rest gebruiken we om te kijken wat jij precies kan.</p>
+              <p style={{ fontSize: 13, color: "#b8c2ca", marginBottom: 20, lineHeight: 1.6 }}>Alles staat al aangevinkt. Vink uit wat jij nooit doet, de rest gebruiken we om te kijken wat jij precies kan.</p>
               {[...geselecteerdeFuncties].map(idx => {
                 const f = cvData.functies[idx];
                 return (
@@ -789,7 +815,7 @@ export default function App() {
           <div style={{ flex: 1, padding: "28px 32px", overflowY: "auto" }}>
             <div style={{ maxWidth: 760, margin: "0 auto" }}>
               <div style={{ fontFamily: "Georgia,serif", fontSize: 21, fontWeight: 600, color: KLEUR.inkt, marginBottom: 8 }}>Valideer je skills</div>
-              <p style={{ fontSize: 13, color: "#666", marginBottom: 18, lineHeight: 1.6 }}>Hier zie je precies wat er bij je taken hoort. Schuif de balk naar hoe goed jij dit kan, van net begonnen tot expert.</p>
+              <p style={{ fontSize: 13, color: "#b8c2ca", marginBottom: 18, lineHeight: 1.6 }}>Hier zie je precies wat er bij je taken hoort. Schuif de balk naar hoe goed jij dit kan, van net begonnen tot expert.</p>
               <SkillsLegenda />
               {[...geselecteerdeFuncties].map(idx => {
                 const f = cvData.functies[idx];
@@ -838,6 +864,7 @@ export default function App() {
             {drijfStap === 0 && !drijfResultaat && (
               <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 32 }}>
                 <div style={{ background: "#fff", borderRadius: 10, border: `1px solid ${KLEUR.lijn}`, padding: "40px 36px", maxWidth: 440, width: "100%", textAlign: "center" }}>
+                  <div style={{ maxWidth: 160, margin: "0 auto 20px" }}><SkillsModel /></div>
                   <div style={{ fontFamily: "Georgia,serif", fontSize: 22, fontWeight: 600, color: KLEUR.inkt, marginBottom: 12 }}>Wat drijft jou?</div>
                   <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7, marginBottom: 24 }}>5 korte vragen over wat je energie geeft op je werk. Geen goed of fout antwoord, kies gewoon wat het meest bij jou past.</p>
                   <button onClick={() => setDrijfStap(1)} style={{ padding: "13px 32px", borderRadius: 6, background: KLEUR.inkt, color: "#fff", border: "none", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Start de test →</button>
@@ -895,7 +922,7 @@ export default function App() {
           <div style={{ flex: 1, overflowY: "auto", padding: "32px" }}>
             <div style={{ maxWidth: 680, margin: "0 auto" }}>
               <div style={{ fontFamily: "Georgia,serif", fontSize: 22, fontWeight: 600, color: KLEUR.inkt, marginBottom: 8 }}>Waar wil jij naartoe groeien?</div>
-              <p style={{ fontSize: 13, color: "#666", lineHeight: 1.6, marginBottom: 16 }}>Wil je nog iets leren, of een andere kant op? Typ het hier, ook een paar woorden is genoeg: wij vullen aan en maken er een concreet advies van.</p>
+              <p style={{ fontSize: 13, color: "#b8c2ca", lineHeight: 1.6, marginBottom: 16 }}>Wil je nog iets leren, of een andere kant op? Typ het hier, ook een paar woorden is genoeg: wij vullen aan en maken er een concreet advies van.</p>
               <Card style={{ marginBottom: 20 }}>
                 <textarea value={ontwikkelDoel} onChange={e => setOntwikkelDoel(e.target.value)} placeholder="Bijv: Ik wil doorgroeien naar een leidinggevende rol, maar merk dat ik moeite heb om mensen aan te sturen…" style={{ width: "100%", minHeight: 110, padding: "14px 16px", borderRadius: 6, border: "1px solid #d0cfc8", fontSize: 14, fontFamily: "inherit", lineHeight: 1.6, color: "#333", background: KLEUR.papier, resize: "vertical", outline: "none", boxSizing: "border-box" }} />
                 <div style={{ marginTop: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1008,36 +1035,26 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
         @media print {
           .niet-printen { display: none !important; }
           body { background: #fff; }
+          .skillsprofiel-titel { color: #1e2a35 !important; }
+          .skillsprofiel-subtitel { color: #666 !important; }
         }
       `}</style>
       <div style={{ maxWidth: 760, margin: "0 auto" }}>
 
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 6 }}>
-          <div>
-            <div style={{ fontFamily: "Georgia,serif", fontSize: 24, fontWeight: 700, color: KLEUR.inkt }}>Dit is jouw skillsprofiel</div>
-            <p style={{ fontSize: 13, color: "#666", marginTop: 6, maxWidth: 480, lineHeight: 1.6 }}>Waar je goed in bent, wat je erbij hebt geleerd, en wat je nog zou willen leren. Laat dit zien aan je leidinggevende, of bewaar het gewoon voor jezelf.</p>
-          </div>
-          <div className="niet-printen" style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => window.print()} style={{ padding: "10px 18px", borderRadius: 6, background: "#fff", color: KLEUR.inkt, border: `1px solid ${KLEUR.lijn}`, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>🖨️ Print / bewaar als PDF</button>
-            <button onClick={nieuwCv} style={{ padding: "10px 18px", borderRadius: 6, background: "#fff", color: "#c0392b", border: `1px solid ${KLEUR.lijn}`, fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>↩ Nieuw CV</button>
-          </div>
+        <div style={{ textAlign: "center", marginBottom: 22 }}>
+          <div style={{ fontSize: 34, marginBottom: 4 }}>✨</div>
+          <div className="skillsprofiel-titel" style={{ fontFamily: "Georgia,serif", fontSize: 30, fontWeight: 700, color: "#f4f1e8" }}>Dit ben jij</div>
+          <p className="skillsprofiel-subtitel" style={{ fontSize: 14, color: "#b8c2ca", marginTop: 8, maxWidth: 440, lineHeight: 1.6, marginLeft: "auto", marginRight: "auto" }}>Waar je goed in bent, wat je erbij hebt geleerd, en wat je nog zou willen leren, allemaal in één overzicht om trots op te zijn.</p>
         </div>
-        {saveStatus && (
-          <div className="niet-printen" style={{ fontSize: 12, color: saveStatus === "opgeslagen" ? "#166534" : saveStatus === "fout" ? "#991b1b" : "#888", marginBottom: 16 }}>
-            {saveStatus === "opslaan..." && "Bezig met opslaan…"}
-            {saveStatus === "opgeslagen" && `✓ Opgeslagen (${escoMatchCount} skills gekoppeld)`}
-            {saveStatus === "fout" && "Opslaan mislukt"}
-          </div>
-        )}
 
-        {/* Jouw verhaal + top 5 */}
+        {/* Jouw verhaal + top 5 — het hoogtepunt */}
         {laden && <LaadScherm titel="Jouw verhaal wordt geschreven…" tekst="We combineren je skills, drijfveren en ontwikkelrichting tot één overzicht." />}
         {!laden && cvData.verhaal && (
           <>
-            {cvData.verhaalBronnen && <p style={{ fontSize: 12, color: "#888", fontStyle: "italic", marginBottom: 16 }}>{cvData.verhaalBronnen}</p>}
             {(cvData.top5?.length > 0) && (
-              <div style={{ background: KLEUR.inkt, borderRadius: 10, padding: 26, marginBottom: 22 }}>
-                <div style={{ fontFamily: "Georgia,serif", fontSize: 18, fontWeight: 600, color: KLEUR.messing, marginBottom: 18 }}>Jouw top 5 skills</div>
+              <div style={{ background: `linear-gradient(160deg, ${KLEUR.inkt}, #16232f)`, borderRadius: 12, padding: 30, marginBottom: 22, boxShadow: `0 0 40px rgba(184,134,63,0.18)`, border: `1px solid rgba(184,134,63,0.35)` }}>
+                <div style={{ fontSize: 11, color: KLEUR.messing, letterSpacing: "1px", textTransform: "uppercase", textAlign: "center", marginBottom: 6 }}>Hier blink jij in uit</div>
+                <div style={{ fontFamily: "Georgia,serif", fontSize: 21, fontWeight: 600, color: "#fff", marginBottom: 20, textAlign: "center" }}>Jouw top 5 skills</div>
                 {cvData.top5.map((item, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 14 }}>
                     <div style={{ width: 26, height: 26, borderRadius: 6, background: "rgba(184,134,63,0.25)", color: KLEUR.messing, fontWeight: 700, fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{i + 1}</div>
@@ -1046,9 +1063,7 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
                 ))}
               </div>
             )}
-            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
-              <button onClick={copyStory} style={{ padding: "9px 18px", borderRadius: 6, background: copied ? "#166534" : KLEUR.inkt, color: "#fff", border: "none", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>{copied ? "✓ Gekopieerd" : "📋 Kopieer verhaal"}</button>
-            </div>
+            {cvData.verhaalBronnen && <p style={{ fontSize: 12, color: "#b8c2ca", fontStyle: "italic", marginBottom: 14, textAlign: "center" }}>{cvData.verhaalBronnen}</p>}
             <Card style={{ marginBottom: 24 }}>
               {[cvData.verhaal?.alinea1, cvData.verhaal?.alinea2, cvData.verhaal?.alinea3].filter(Boolean).map((p, i, arr) => (
                 <p key={i} style={{ fontSize: 15, color: "#333", lineHeight: 1.85, marginBottom: i < arr.length - 1 ? 18 : 0 }}>{p}</p>
@@ -1137,6 +1152,18 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
           </button>
           <p style={{ fontSize: 12, color: "#888", marginTop: 10 }}>Zie precies wat je al kan, en wat je nog zou kunnen ontwikkelen voor een andere rol.</p>
         </div>
+
+        <div className="niet-printen" style={{ display: "flex", justifyContent: "center", gap: 18, alignItems: "center", marginTop: 10, paddingTop: 18, borderTop: "1px solid rgba(244,241,232,0.12)" }}>
+          <button onClick={() => window.print()} style={{ background: "none", border: "none", color: "#8a94a0", fontSize: 12, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }}>🖨️ Print / bewaar als PDF</button>
+          <button onClick={nieuwCv} style={{ background: "none", border: "none", color: "#8a94a0", fontSize: 12, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }}>↩ Begin opnieuw met een ander CV</button>
+        </div>
+        {saveStatus && (
+          <div className="niet-printen" style={{ fontSize: 11, color: saveStatus === "opgeslagen" ? "#5a9c76" : saveStatus === "fout" ? "#c07a7a" : "#8a94a0", textAlign: "center", marginTop: 8 }}>
+            {saveStatus === "opslaan..." && "Bezig met opslaan…"}
+            {saveStatus === "opgeslagen" && `✓ Opgeslagen (${escoMatchCount} skills gekoppeld)`}
+            {saveStatus === "fout" && "Opslaan mislukt"}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1153,7 +1180,7 @@ function VergelijkStap({ functiesLijst, functiesLaden, laadFuncties, gekozenVerg
     <div style={{ flex: 1, padding: "28px 32px", overflowY: "auto" }}>
       <div style={{ maxWidth: 700, margin: "0 auto" }}>
         <div style={{ fontFamily: "Georgia,serif", fontSize: 22, fontWeight: 600, color: KLEUR.inkt, marginBottom: 8 }}>Vergelijk met een functie</div>
-        <p style={{ fontSize: 13, color: "#666", lineHeight: 1.6, marginBottom: 20 }}>Kies een functie om je skillsprofiel mee te vergelijken. Zo zie je precies wat je al kan, en wat je nog zou kunnen ontwikkelen.</p>
+        <p style={{ fontSize: 13, color: "#b8c2ca", lineHeight: 1.6, marginBottom: 20 }}>Kies een functie om je skillsprofiel mee te vergelijken. Zo zie je precies wat je al kan, en wat je nog zou kunnen ontwikkelen.</p>
 
         {functiesLaden && <LaadScherm titel="Functies worden opgehaald…" tekst="" />}
 
@@ -1216,8 +1243,8 @@ function RoadmapStap({ gapResultaat, maakRoadmap, roadmapLaden, roadmapOpgeslage
   return (
     <div style={{ flex: 1, padding: "28px 32px", overflowY: "auto" }}>
       <div style={{ maxWidth: 700, margin: "0 auto" }}>
-        <div style={{ fontFamily: "Georgia,serif", fontSize: 22, fontWeight: 600, color: KLEUR.inkt, marginBottom: 8 }}>Jouw roadmap{functieTitel ? ` naar ${functieTitel}` : ""}</div>
-        <p style={{ fontSize: 13, color: "#666", lineHeight: 1.6, marginBottom: 20 }}>Dit zijn de concrete stappen die je kan zetten. Sla ze op om je voortgang bij te houden.</p>
+        <div style={{ fontFamily: "Georgia,serif", fontSize: 22, fontWeight: 600, color: "#f4f1e8", marginBottom: 8 }}>Jouw roadmap{functieTitel ? ` naar ${functieTitel}` : ""}</div>
+        <p style={{ fontSize: 13, color: "#b8c2ca", lineHeight: 1.6, marginBottom: 20 }}>Dit zijn de concrete stappen die je kan zetten. Sla ze op om je voortgang bij te houden.</p>
 
         <Card style={{ marginBottom: 20 }}>
           {gapResultaat.missing.map((s, i) => (
