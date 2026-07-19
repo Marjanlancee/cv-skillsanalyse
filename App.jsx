@@ -118,7 +118,7 @@ function DrijfveerIcon({ type, kleur, size = 22 }) {
     R: <path d="M18 6 L14 10 L16 12 L20 8 L21 9 C22 11 20 13 18 12 L8 22 C7 23 5 23 4 22 C3 21 3 19 4 18 L14 8 C13 6 15 4 17 5 Z" />,
     I: <><circle cx="11" cy="11" r="6" /><line x1="16" y1="16" x2="21" y2="21" /></>,
     A: <path d="M4 20 L4 16 L16 4 L20 8 L8 20 Z M13 7 L17 11" />,
-    S: <path d="M12 21 C7 17 3 14 3 9.5 C3 6.5 5.5 4 8.5 4 C10 4 11.3 4.8 12 6 C12.7 4.8 14 4 15.5 4 C18.5 4 21 6.5 21 9.5 C21 14 17 17 12 21 Z" />,
+    S: <><path d="M4 17 L9.5 11.5" /><path d="M20 17 L14.5 11.5" /><circle cx="12" cy="10.5" r="2" /><path d="M4 17 C4 15 5.5 14 7 14.5" /><path d="M20 17 C20 15 18.5 14 17 14.5" /></>,
     E: <path d="M5 3 L5 21 M5 4 L18 4 L14 8 L18 12 L5 12" />,
     C: <><rect x="4" y="4" width="16" height="16" rx="1" /><line x1="8" y1="9" x2="16" y2="9" /><line x1="8" y1="13" x2="16" y2="13" /><line x1="8" y1="17" x2="13" y2="17" /></>,
   };
@@ -196,8 +196,67 @@ const ROUTE_UITLEG = [
   { titel: "Roadmap", tekst: "Krijg concrete vervolgstappen" },
 ];
 
-function SkillsModel() {
-  return <img src="/skills-model.jpg" alt="Weten Kunnen Zijn Willen skills model" style={{ width: "100%", maxWidth: 220, display: "block", margin: "0 auto", borderRadius: 8 }} />;
+function SkillsModel({ size = 220 }) {
+  const kleur = "#2a8fa0"; // representatieve Bright-kleur (teal/blauw)
+  const kleurDonker = "#1c6474";
+  const kleurLicht = "#4bb3c4";
+  const kwadranten = [
+    { rot: 0, boven: "weten", onder: "kennis" },
+    { rot: 90, boven: "kunnen", onder: "vaardigheden" },
+    { rot: 180, boven: "zijn", onder: "persoonskenmerken" },
+    { rot: 270, boven: "willen", onder: "motivatie" },
+  ];
+  return (
+    <svg width={size} height={size} viewBox="0 0 220 220">
+      <defs>
+        <radialGradient id="skillsBol" cx="35%" cy="30%" r="75%">
+          <stop offset="0%" stopColor={kleurLicht} />
+          <stop offset="55%" stopColor={kleur} />
+          <stop offset="100%" stopColor={kleurDonker} />
+        </radialGradient>
+        <radialGradient id="skillsKern" cx="35%" cy="30%" r="75%">
+          <stop offset="0%" stopColor="#fff" />
+          <stop offset="100%" stopColor="#eef4fb" />
+        </radialGradient>
+        <filter id="skillsSchaduw" x="-30%" y="-30%" width="160%" height="160%">
+          <feDropShadow dx="0" dy="3" stdDeviation="4" floodColor="#000" floodOpacity="0.35" />
+        </filter>
+      </defs>
+
+      <g filter="url(#skillsSchaduw)">
+        <circle cx="110" cy="110" r="95" fill="url(#skillsBol)" stroke={kleurDonker} strokeWidth="1" />
+        <path d="M110 15 L110 205 M15 110 L205 110" stroke={kleurDonker} strokeWidth="2" opacity="0.5" />
+        <circle cx="110" cy="110" r="34" fill="url(#skillsKern)" stroke={kleurDonker} strokeWidth="1" />
+      </g>
+
+      <text x="110" y="115" textAnchor="middle" fontFamily="Georgia,serif" fontWeight="700" fontSize="16" fill={kleurDonker}>skills</text>
+
+      {/* Gebogen labels rondom */}
+      <path id="boogLinksBoven" d="M 30 110 A 80 80 0 0 1 110 30" fill="none" />
+      <path id="boogRechtsBoven" d="M 110 30 A 80 80 0 0 1 190 110" fill="none" />
+      <path id="boogRechtsOnder" d="M 190 110 A 80 80 0 0 1 110 190" fill="none" />
+      <path id="boogLinksOnder" d="M 110 190 A 80 80 0 0 1 30 110" fill="none" />
+
+      <text fontFamily="Georgia,serif" fontWeight="700" fontSize="15" fill={kleurDonker}>
+        <textPath href="#boogLinksBoven" startOffset="50%" textAnchor="middle">weten</textPath>
+      </text>
+      <text fontFamily="Georgia,serif" fontWeight="700" fontSize="15" fill={kleurDonker}>
+        <textPath href="#boogRechtsBoven" startOffset="50%" textAnchor="middle">kunnen</textPath>
+      </text>
+      <text fontFamily="Georgia,serif" fontWeight="700" fontSize="15" fill={kleurDonker}>
+        <textPath href="#boogRechtsOnder" startOffset="50%" textAnchor="middle">willen</textPath>
+      </text>
+      <text fontFamily="Georgia,serif" fontWeight="700" fontSize="15" fill={kleurDonker}>
+        <textPath href="#boogLinksOnder" startOffset="50%" textAnchor="middle">zijn</textPath>
+      </text>
+
+      {/* Kleine binnen-labels per kwadrant */}
+      <text x="72" y="72" textAnchor="middle" fontSize="9" fill="#fff" opacity="0.9">kennis</text>
+      <text x="148" y="72" textAnchor="middle" fontSize="9" fill="#fff" opacity="0.9">vaardigheden</text>
+      <text x="72" y="152" textAnchor="middle" fontSize="9" fill="#fff" opacity="0.9">persoonskenmerken</text>
+      <text x="148" y="152" textAnchor="middle" fontSize="9" fill="#fff" opacity="0.9">motivatie</text>
+    </svg>
+  );
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -792,7 +851,7 @@ export default function App() {
             <div style={{ maxWidth: 380, width: "100%", textAlign: "center" }}>
               <div style={{ fontFamily: "Georgia,serif", fontSize: 26, fontWeight: 700, color: "#fff", marginBottom: 12 }}>Jouw skillsprofiel</div>
               <p style={{ fontSize: 12, color: "#c4cdd4", lineHeight: 1.6, marginBottom: 22, fontStyle: "italic" }}>
-                Je leert je hele leven bij: op school, maar net zo goed thuis en op je werk. Een diploma is waardevol, maar vertelt maar een deel van het verhaal. Op de werkvloer heb je vaak veel meer geleerd dan je zelf beseft, en dat brengen we hier in kaart.
+                Je leert je hele leven: tijdens je studie, maar net zo goed thuis en op je werk. Een diploma is waardevol, maar vertelt maar een deel van het verhaal. Op de werkvloer heb je vaak veel meer geleerd dan je zelf beseft, en dat brengen we hier in kaart.
               </p>
               <div onClick={() => fileInputRef.current.click()} onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={e => { e.preventDefault(); setDragging(false); handleFile(e.dataTransfer.files[0]); }}
                 style={{ background: dragging ? "#eef4fb" : "linear-gradient(180deg,#f4f8fc,#e9f0f8)", borderRadius: 10, border: `2px dashed ${dragging ? KLEUR.messing : "#9fb4c9"}`, padding: "30px 26px", textAlign: "center", cursor: "pointer", boxShadow: "0 12px 34px rgba(15,25,35,0.35)" }}>
@@ -1128,13 +1187,13 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
         {!laden && cvData.verhaal && (
           <>
             {(cvData.top5?.length > 0) && (
-              <div style={{ background: `linear-gradient(160deg, ${KLEUR.inkt}, #16232f)`, borderRadius: 12, padding: 30, marginBottom: 22, boxShadow: `0 0 40px rgba(184,134,63,0.18)`, border: `1px solid rgba(184,134,63,0.35)` }}>
-                <div style={{ fontSize: 11, color: KLEUR.messing, letterSpacing: "1px", textTransform: "uppercase", textAlign: "center", marginBottom: 6 }}>Hier blink jij in uit</div>
-                <div style={{ fontFamily: "Georgia,serif", fontSize: 21, fontWeight: 600, color: "#fff", marginBottom: 20, textAlign: "center" }}>Jouw top 5 skills</div>
+              <div style={{ background: "linear-gradient(160deg,#eef4fb,#e3edf7)", borderRadius: 12, padding: 30, marginBottom: 22, boxShadow: "0 8px 30px rgba(47,102,144,0.15)", border: "1px solid #c7dcf0" }}>
+                <div style={{ fontSize: 11, color: "#2f6690", letterSpacing: "1px", textTransform: "uppercase", textAlign: "center", marginBottom: 6 }}>Hier blink jij in uit</div>
+                <div style={{ fontFamily: "Georgia,serif", fontSize: 21, fontWeight: 600, color: KLEUR.inkt, marginBottom: 20, textAlign: "center" }}>Jouw top 5 skills</div>
                 {cvData.top5.map((item, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 14 }}>
-                    <div style={{ width: 26, height: 26, borderRadius: 6, background: "rgba(184,134,63,0.25)", color: KLEUR.messing, fontWeight: 700, fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{i + 1}</div>
-                    <div style={{ fontSize: 14, color: "#ddd", lineHeight: 1.6 }}><span style={{ fontWeight: 600, color: "#fff" }}>{item.skill}</span>: {item.toelichting}</div>
+                    <div style={{ width: 26, height: 26, borderRadius: 6, background: "rgba(47,102,144,0.15)", color: "#2f6690", fontWeight: 700, fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{i + 1}</div>
+                    <div style={{ fontSize: 14, color: "#3a4650", lineHeight: 1.6 }}><span style={{ fontWeight: 600, color: KLEUR.inkt }}>{item.skill}</span>: {item.toelichting}</div>
                   </div>
                 ))}
               </div>
@@ -1151,7 +1210,7 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
         {/* Weten · Kunnen · Zijn · Willen */}
         <Card style={{ marginBottom: 16 }}>
           <div style={{ display: "grid", gridTemplateColumns: "160px 1fr", gap: 20, alignItems: "start" }}>
-            <SkillsModel />
+            <SkillsModel size={150} />
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
               {[
                 { key: "weten", label: "Weten", sub: "Kennis" },
