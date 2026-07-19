@@ -452,6 +452,11 @@ function OverslaanBlok({ onOverslaan }) {
 
 // ─── Hoofd App ────────────────────────────────────────────────────────────────
 export default function App() {
+  // Als iemand op een gedeelde feedback-link klikt, hoeft die niet in te loggen —
+  // toon dan meteen de openbare feedbackpagina, en sla al het andere over.
+  const feedbackToken = new URLSearchParams(window.location.search).get("feedback");
+  if (feedbackToken) return <FeedbackPagina token={feedbackToken} />;
+
   const [sessie, setSessie] = useState(null);
   const [sessieAanHetLaden, setSessieAanHetLaden] = useState(true);
 
@@ -501,11 +506,56 @@ export default function App() {
   const [roadmapOpgeslagen, setRoadmapOpgeslagen] = useState(false);
   const [roadmapLaden, setRoadmapLaden] = useState(false);
 
+  // Feedback-functie
+  const [feedbackLinks, setFeedbackLinks] = useState({}); // { functieIdx: { link, laden } }
+
+  async function vraagFeedback(functieIdx) {
+    setFeedbackLinks(prev => ({ ...prev, [functieIdx]: { laden: true } }));
+    try {
+      const functie = cvData.functies[functieIdx];
+      const taken = functieSkills[functieIdx] || [];
+      const skillsSnapshot = [];
+      const gezien = new Set();
+      taken.forEach(t => [...t.hardskills, ...t.softskills].forEach(s => {
+        if (!gezien.has(s.tekst)) { gezien.add(s.tekst); skillsSnapshot.push({ tekst: s.tekst, eigenNiveau: beoordelingen[s.tekst] || 3 }); }
+      }));
+
+      const token = crypto.randomUUID();
+      const verloopt = new Date(); verloopt.setDate(verloopt.getDate() + 14);
+
+      const medewerker = await supabase.from("medewerkers").select("id").eq("auth_user_id", sessie.user.id).maybeSingle();
+      const { error } = await supabase.from("feedback_verzoeken").insert({
+        token, medewerker_id: medewerker.data.id,
+        functie_titel: functie.titel, skills: skillsSnapshot, verloopt_op: verloopt.toISOString(),
+      });
+      if (error) throw error;
+
+      const link = `${window.location.origin}${window.location.pathname}?feedback=${token}`;
+      setFeedbackLinks(prev => ({ ...prev, [functieIdx]: { laden: false, link } }));
+    } catch (e) { console.error(e); setFeedbackLinks(prev => ({ ...prev, [functieIdx]: { laden: false, fout: true } })); }
+  }
+
+  const [ontvangenFeedback, setOntvangenFeedback] = useState({}); // { functieIdx: { laden, reacties: [{naam, reacties: [{tekst,score,toelichting}]}] } }
+
+  async function haalFeedbackOp(functieIdx) {
+    setOntvangenFeedback(prev => ({ ...prev, [functieIdx]: { laden: true } }));
+    try {
+      const functie = cvData.functies[functieIdx];
+      const medewerker = await supabase.from("medewerkers").select("id").eq("auth_user_id", sessie.user.id).maybeSingle();
+      const { data: verzoeken } = await supabase.from("feedback_verzoeken").select("id").eq("medewerker_id", medewerker.data.id).eq("functie_titel", functie.titel);
+      const verzoekIds = (verzoeken || []).map(v => v.id);
+      if (verzoekIds.length === 0) { setOntvangenFeedback(prev => ({ ...prev, [functieIdx]: { laden: false, reacties: [] } })); return; }
+      const { data: reacties } = await supabase.from("feedback_reacties").select("naam_feedbackgever, reacties").in("verzoek_id", verzoekIds);
+      setOntvangenFeedback(prev => ({ ...prev, [functieIdx]: { laden: false, reacties: reacties || [] } }));
+    } catch (e) { console.error(e); setOntvangenFeedback(prev => ({ ...prev, [functieIdx]: { laden: false, reacties: [] } })); }
+  }
+
   // Drijfveren state
   const [drijfStap, setDrijfStap] = useState(0);
   const [antwoorden, setAntwoorden] = useState({});
   const [drijfResultaat, setDrijfResultaat] = useState(null);
   const [drijfLoading, setDrijfLoading] = useState(false);
+  const [drijfFout, setDrijfFout] = useState("");
 
   // Ontwikkeladvies state
   const [ontwikkelDoel, setOntwikkelDoel] = useState("");
@@ -769,12 +819,17 @@ export default function App() {
   }
   async function genereerDrijfverenProfiel(scores) {
     setDrijfLoading(true);
+    setDrijfFout("");
     const gesorteerd = Object.entries(scores).sort((a, b) => b[1] - a[1]);
     const top3 = gesorteerd.slice(0, 3).map(([k]) => `${DRIJFVEER_TYPES[k].label}`).join(", ");
     try {
-      const text = await callClaude([{ role: "user", content: drijfverenPrompt(scores, top3) }], 1000);
+      const text = await callClaude([{ role: "user", content: drijfverenPrompt(scores, top3) }], 1500);
       setDrijfResultaat({ scores, gesorteerd, interpretatie: parseJSON(text) });
-    } catch { setDrijfResultaat({ scores, gesorteerd, interpretatie: null }); }
+    } catch (e) {
+      console.error(e);
+      setDrijfResultaat({ scores, gesorteerd, interpretatie: null });
+      setDrijfFout("Het lukte niet om de toelichting te maken.");
+    }
     setDrijfLoading(false);
   }
 
@@ -964,6 +1019,57 @@ export default function App() {
                         </div>
                       ))}
                     </div>
+                    <div style={{ padding: "0 22px 20px", borderTop: `1px solid ${KLEUR.lijn}`, paddingTop: 16 }}>
+                      {!feedbackLinks[idx]?.link ? (
+                        <button onClick={() => vraagFeedback(idx)} disabled={feedbackLinks[idx]?.laden} style={{ padding: "9px 18px", borderRadius: 6, background: "#fff", color: KLEUR.inkt, border: `1px solid ${KLEUR.lijn}`, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                          {feedbackLinks[idx]?.laden ? "Bezig…" : "💬 Vraag feedback op deze functie"}
+                        </button>
+                      ) : (
+                        <div style={{ fontSize: 12, color: "#166534", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                          ✓ Link aangemaakt (14 dagen geldig):
+                          <input readOnly value={feedbackLinks[idx].link} onClick={e => e.target.select()} style={{ fontSize: 11, padding: "4px 8px", borderRadius: 4, border: "1px solid #d0cfc8", width: 260 }} />
+                          <button onClick={() => navigator.clipboard.writeText(feedbackLinks[idx].link)} style={{ fontSize: 11, padding: "4px 10px", borderRadius: 4, background: KLEUR.inkt, color: "#fff", border: "none", cursor: "pointer" }}>Kopieer</button>
+                        </div>
+                      )}
+
+                      <button onClick={() => haalFeedbackOp(idx)} style={{ marginTop: 10, padding: "9px 18px", borderRadius: 6, background: "#fff", color: KLEUR.messingDonker, border: `1px solid ${KLEUR.lijn}`, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                        📊 Bekijk ontvangen feedback
+                      </button>
+
+                      {ontvangenFeedback[idx]?.laden && <p style={{ fontSize: 12, color: "#888", marginTop: 10 }}>Bezig met ophalen…</p>}
+                      {ontvangenFeedback[idx] && !ontvangenFeedback[idx].laden && (
+                        ontvangenFeedback[idx].reacties.length === 0 ? (
+                          <p style={{ fontSize: 12, color: "#888", marginTop: 10 }}>Nog geen feedback ontvangen.</p>
+                        ) : (
+                          <div style={{ marginTop: 16 }}>
+                            {ontvangenFeedback[idx].reacties.map((r, ri) => {
+                              const alleSkillTeksten = (functieSkills[idx] || []).flatMap(tk => [...tk.hardskills, ...tk.softskills].map(s => s.tekst));
+                              const skillsLijst = [...new Set(alleSkillTeksten)];
+                              const eigenScores = skillsLijst.map(s => beoordelingen[s] || 3);
+                              const feedbackScores = skillsLijst.map(s => {
+                                const gevonden = r.reacties.find(x => x.tekst === s);
+                                return gevonden ? gevonden.score : 3;
+                              });
+                              return (
+                                <div key={ri} style={{ marginBottom: 20, paddingBottom: 20, borderBottom: ri < ontvangenFeedback[idx].reacties.length - 1 ? `1px solid ${KLEUR.lijn}` : "none" }}>
+                                  <div style={{ fontSize: 13, fontWeight: 600, color: KLEUR.inkt, marginBottom: 8 }}>Feedback van {r.naam_feedbackgever}</div>
+                                  <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
+                                    <RadarDiagram skills={skillsLijst} eigenScores={eigenScores} feedbackScores={feedbackScores} size={260} />
+                                  </div>
+                                  <div style={{ display: "flex", gap: 14, justifyContent: "center", fontSize: 11, marginBottom: 10 }}>
+                                    <span style={{ color: "#2f6690" }}>■ Jouw inschatting</span>
+                                    <span style={{ color: KLEUR.messingDonker }}>■ {r.naam_feedbackgever}</span>
+                                  </div>
+                                  {r.reacties.filter(x => x.toelichting).map((x, xi) => (
+                                    <div key={xi} style={{ fontSize: 12, color: "#555", padding: "6px 0" }}><strong>{x.tekst}:</strong> {x.toelichting}</div>
+                                  ))}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -1028,6 +1134,12 @@ export default function App() {
                         {top3.map(([k], i) => { const t = DRIJFVEER_TYPES[k]; return (<div key={k} style={{ display: "flex", alignItems: "center", gap: 10, background: t.kleur + "25", border: `1px solid ${t.kleur}55`, borderRadius: 8, padding: "10px 16px" }}><span style={{ fontSize: 24 }}>{t.emoji}</span><div><div style={{ fontSize: 11, color: "#a8b3bd", fontWeight: 500 }}>#{i + 1}</div><div style={{ fontSize: 15, fontWeight: 700, color: t.kleur }}>{t.label}</div></div></div>); })}
                       </div>
                     </div>
+                    {!interpretatie && drijfFout && (
+                      <Card style={{ marginBottom: 16 }}>
+                        <p style={{ fontSize: 13, color: "#c0392b", marginBottom: 10 }}>⚠️ {drijfFout}</p>
+                        <button onClick={() => genereerDrijfverenProfiel(scores)} style={{ padding: "9px 18px", borderRadius: 6, background: KLEUR.inkt, color: "#fff", border: "none", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Opnieuw proberen</button>
+                      </Card>
+                    )}
                     {interpretatie && (
                       <Card style={{ marginBottom: 16 }}>
                         <SectionTitle>Wat dit over jou zegt</SectionTitle>
@@ -1431,6 +1543,124 @@ function RoadmapStap({ gapResultaat, maakRoadmap, roadmapLaden, roadmapOpgeslage
             ✓ Je roadmap is opgeslagen. Je kan hier straks je voortgang bijhouden.
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Radar-diagram: zelfbeoordeling vs. feedback van een collega ──────────────
+function RadarDiagram({ skills, eigenScores, feedbackScores, size = 280 }) {
+  const n = skills.length;
+  if (n < 3) return null; // een radar heeft minimaal 3 punten nodig om iets te tonen
+  const midden = size / 2;
+  const straal = size / 2 - 50;
+
+  function punt(index, waarde) {
+    const hoek = (Math.PI * 2 * index) / n - Math.PI / 2;
+    const r = (waarde / 5) * straal;
+    return [midden + r * Math.cos(hoek), midden + r * Math.sin(hoek)];
+  }
+  function label(index) {
+    const hoek = (Math.PI * 2 * index) / n - Math.PI / 2;
+    return [midden + (straal + 30) * Math.cos(hoek), midden + (straal + 30) * Math.sin(hoek)];
+  }
+
+  const eigenPad = skills.map((s, i) => punt(i, eigenScores[i]).join(",")).join(" ");
+  const feedbackPad = feedbackScores ? skills.map((s, i) => punt(i, feedbackScores[i]).join(",")).join(" ") : null;
+
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      {[1, 2, 3, 4, 5].map(r => (
+        <polygon key={r} points={skills.map((s, i) => punt(i, r).join(",")).join(" ")} fill="none" stroke="#e3ded0" strokeWidth="1" />
+      ))}
+      {skills.map((s, i) => { const [x, y] = punt(i, 5); return <line key={i} x1={midden} y1={midden} x2={x} y2={y} stroke="#e3ded0" strokeWidth="1" />; })}
+      {feedbackPad && <polygon points={feedbackPad} fill="rgba(184,134,63,0.25)" stroke={KLEUR.messing} strokeWidth="2" />}
+      <polygon points={eigenPad} fill="rgba(47,102,144,0.2)" stroke="#2f6690" strokeWidth="2" />
+      {skills.map((s, i) => { const [x, y] = label(i); return <text key={i} x={x} y={y} fontSize="10" fill="#555" textAnchor="middle">{s.length > 16 ? s.slice(0, 14) + "…" : s}</text>; })}
+    </svg>
+  );
+}
+
+// ─── Openbare feedbackpagina (geen login nodig) ─────────────────────────────
+function FeedbackPagina({ token }) {
+  const [verzoek, setVerzoek] = useState(null);
+  const [laden, setLaden] = useState(true);
+  const [fout, setFout] = useState("");
+  const [naam, setNaam] = useState("");
+  const [scores, setScores] = useState({});
+  const [toelichtingen, setToelichtingen] = useState({});
+  const [verzonden, setVerzonden] = useState(false);
+  const [versturen, setVersturen] = useState(false);
+
+  useEffect(() => {
+    async function laadVerzoek() {
+      const { data, error } = await supabase.from("feedback_verzoeken").select("*").eq("token", token).maybeSingle();
+      if (error || !data) { setFout("Deze link is niet geldig."); setLaden(false); return; }
+      if (new Date(data.verloopt_op) < new Date()) { setFout("Deze link is verlopen. Vraag de collega om een nieuwe link."); setLaden(false); return; }
+      setVerzoek(data);
+      const initScores = {};
+      data.skills.forEach(s => { initScores[s.tekst] = 3; });
+      setScores(initScores);
+      setLaden(false);
+    }
+    laadVerzoek();
+  }, [token]);
+
+  async function versturenFeedback() {
+    if (!naam.trim()) return;
+    setVersturen(true);
+    const reacties = verzoek.skills.map(s => ({ tekst: s.tekst, score: scores[s.tekst] || 3, toelichting: toelichtingen[s.tekst] || "" }));
+    const { error } = await supabase.from("feedback_reacties").insert({ verzoek_id: verzoek.id, naam_feedbackgever: naam.trim(), reacties });
+    if (!error) setVerzonden(true);
+    setVersturen(false);
+  }
+
+  if (laden) return <div style={{ minHeight: "100vh", background: KLEUR.papier, display: "flex", alignItems: "center", justifyContent: "center" }}><Spinner /></div>;
+
+  if (fout) return (
+    <div style={{ minHeight: "100vh", background: KLEUR.papier, display: "flex", alignItems: "center", justifyContent: "center", padding: 32 }}>
+      <p style={{ fontSize: 14, color: "#991b1b" }}>⚠️ {fout}</p>
+    </div>
+  );
+
+  if (verzonden) return (
+    <div style={{ minHeight: "100vh", background: KLEUR.papier, display: "flex", alignItems: "center", justifyContent: "center", padding: 32 }}>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 40, marginBottom: 12 }}>✓</div>
+        <div style={{ fontFamily: "Georgia,serif", fontSize: 20, color: KLEUR.inkt }}>Bedankt voor je feedback!</div>
+        <p style={{ fontSize: 13, color: "#888", marginTop: 8 }}>Je reactie is verstuurd.</p>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ minHeight: "100vh", background: KLEUR.papier, fontFamily: "'Segoe UI',sans-serif", padding: "32px 20px" }}>
+      <div style={{ maxWidth: 600, margin: "0 auto" }}>
+        <div style={{ background: "#fff", borderRadius: 10, border: `1px solid ${KLEUR.lijn}`, padding: "28px 30px", marginBottom: 20 }}>
+          <div style={{ fontFamily: "Georgia,serif", fontSize: 20, fontWeight: 700, color: KLEUR.inkt, marginBottom: 10 }}>Feedback gevraagd op: {verzoek.functie_titel}</div>
+          <p style={{ fontSize: 13, color: "#555", lineHeight: 1.7 }}>
+            Een collega heeft zichzelf beoordeeld op de skills die bij deze functie horen, en wil graag jouw kijk daarop. Geef per skill aan hoe jij dit ziet (van Beginner tot Expert), en licht het kort toe als je dat wilt. Dit helpt je collega om een eerlijker beeld te krijgen van waar hij of zij staat.
+          </p>
+        </div>
+
+        <div style={{ background: "#fff", borderRadius: 10, border: `1px solid ${KLEUR.lijn}`, padding: "20px 24px", marginBottom: 20 }}>
+          <label style={{ fontSize: 13, color: "#555", display: "block", marginBottom: 6 }}>Jouw naam</label>
+          <input type="text" value={naam} onChange={e => setNaam(e.target.value)} placeholder="Bijv. Jan de Vries"
+            style={{ width: "100%", padding: "10px 14px", borderRadius: 6, border: "1px solid #d0cfc8", fontSize: 14, fontFamily: "inherit", boxSizing: "border-box" }} />
+        </div>
+
+        {verzoek.skills.map((s, i) => (
+          <div key={i} style={{ background: "#fff", borderRadius: 10, border: `1px solid ${KLEUR.lijn}`, padding: "18px 22px", marginBottom: 14 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: KLEUR.inkt, marginBottom: 10 }}>{s.tekst}</div>
+            <MiniSchaal label="Jouw inschatting" labels={NIVEAUS} waarde={scores[s.tekst] || 3} onChange={v => setScores(prev => ({ ...prev, [s.tekst]: v }))} />
+            <textarea value={toelichtingen[s.tekst] || ""} onChange={e => setToelichtingen(prev => ({ ...prev, [s.tekst]: e.target.value }))}
+              placeholder="Toelichting (optioneel)" style={{ width: "100%", marginTop: 10, padding: "8px 12px", borderRadius: 6, border: "1px solid #d0cfc8", fontSize: 13, fontFamily: "inherit", minHeight: 50, boxSizing: "border-box" }} />
+          </div>
+        ))}
+
+        <button onClick={versturenFeedback} disabled={!naam.trim() || versturen} style={{ padding: "13px 28px", borderRadius: 6, background: !naam.trim() ? "#ccc" : KLEUR.inkt, color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: !naam.trim() ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
+          {versturen ? "Bezig…" : "Feedback versturen →"}
+        </button>
       </div>
     </div>
   );
