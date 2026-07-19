@@ -770,9 +770,12 @@ export default function App() {
     const top3 = gesorteerd.slice(0, 3).map(([k]) => `${DRIJFVEER_TYPES[k].label}`).join(", ");
     try {
       const text = await callClaude([{ role: "user", content: drijfverenPrompt(scores, top3) }], 2000);
-      setDrijfResultaat({ scores, gesorteerd, interpretatie: parseJSON(text) });
+      console.log("Drijfveren-antwoord ontvangen:", text);
+      const geparsed = parseJSON(text);
+      console.log("Drijfveren-antwoord verwerkt:", geparsed);
+      setDrijfResultaat({ scores, gesorteerd, interpretatie: geparsed });
     } catch (e) {
-      console.error(e);
+      console.error("Drijfveren-fout:", e);
       setDrijfResultaat({ scores, gesorteerd, interpretatie: null });
       setDrijfFout("Het lukte niet om de toelichting te maken.");
     }
@@ -1080,13 +1083,19 @@ export default function App() {
                         {top3.map(([k], i) => { const t = DRIJFVEER_TYPES[k]; return (<div key={k} style={{ display: "flex", alignItems: "center", gap: 10, background: t.kleur + "25", border: `1px solid ${t.kleur}55`, borderRadius: 8, padding: "10px 16px" }}><span style={{ fontSize: 24 }}>{t.emoji}</span><div><div style={{ fontSize: 11, color: "#a8b3bd", fontWeight: 500 }}>#{i + 1}</div><div style={{ fontSize: 15, fontWeight: 700, color: t.kleur }}>{t.label}</div></div></div>); })}
                       </div>
                     </div>
-                    {!interpretatie && drijfFout && (
+                    {!interpretatie && (
                       <Card style={{ marginBottom: 16 }}>
-                        <p style={{ fontSize: 13, color: "#c0392b", marginBottom: 10 }}>⚠️ {drijfFout}</p>
+                        <p style={{ fontSize: 13, color: "#c0392b", marginBottom: 10 }}>⚠️ {drijfFout || "Het lukte niet om de toelichting te maken."}</p>
                         <button onClick={() => genereerDrijfverenProfiel(scores)} style={{ padding: "9px 18px", borderRadius: 6, background: KLEUR.inkt, color: "#fff", border: "none", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Opnieuw proberen</button>
                       </Card>
                     )}
-                    {interpretatie && (
+                    {interpretatie && !interpretatie.intro && (
+                      <Card style={{ marginBottom: 16 }}>
+                        <p style={{ fontSize: 13, color: "#c0392b", marginBottom: 10 }}>⚠️ De toelichting kwam niet helemaal goed door.</p>
+                        <button onClick={() => genereerDrijfverenProfiel(scores)} style={{ padding: "9px 18px", borderRadius: 6, background: KLEUR.inkt, color: "#fff", border: "none", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Opnieuw proberen</button>
+                      </Card>
+                    )}
+                    {interpretatie && interpretatie.intro && (
                       <Card style={{ marginBottom: 16 }}>
                         <SectionTitle>Wat dit over jou zegt</SectionTitle>
                         <p style={{ fontSize: 14, color: "#333", lineHeight: 1.75, marginBottom: 14 }}>{interpretatie.intro}</p>
