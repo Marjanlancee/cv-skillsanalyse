@@ -493,7 +493,7 @@ export default function App() {
       if (!verzoeken || verzoeken.length === 0) { setAlleFeedback({ laden: false, items: [] }); return; }
 
       const verzoekIds = verzoeken.map(v => v.id);
-      const { data: reacties } = await supabase.from("feedback_reacties").select("verzoek_id, naam_feedbackgever, reacties").in("verzoek_id", verzoekIds);
+      const { data: reacties } = await supabase.from("feedback_reacties").select("verzoek_id, naam_feedbackgever, reacties, aangemaakt_op").in("verzoek_id", verzoekIds);
 
       const items = verzoeken.map(v => ({
         functieTitel: v.functie_titel,
@@ -1312,7 +1312,10 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
                     });
                     return (
                       <div key={ri} style={{ marginBottom: 16 }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: "#3c3f6b", marginBottom: 6 }}>Feedback van {r.naam_feedbackgever}</div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: "#3c3f6b", marginBottom: 6 }}>
+                          Feedback van {r.naam_feedbackgever}
+                          <span style={{ fontWeight: 400, color: "#6a6d8f" }}> · {new Date(r.aangemaakt_op).toLocaleDateString("nl-NL", { day: "numeric", month: "long", year: "numeric" })}</span>
+                        </div>
                         {skillsLijst.length >= 3 ? (
                           <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}>
                             <RadarDiagram skills={skillsLijst} eigenScores={eigenScores} feedbackScores={feedbackScores} size={240} />
