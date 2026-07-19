@@ -426,6 +426,17 @@ export default function App() {
 
   const [copied, setCopied] = useState(false);
   const [verhaalFout, setVerhaalFout] = useState("");
+  const [toekomstblik, setToekomstblik] = useState(null);
+  const [toekomstLaden, setToekomstLaden] = useState(false);
+
+  async function genereerToekomstblik(functieTitel) {
+    setToekomstLaden(true);
+    try {
+      const text = await callClaude([{ role: "user", content: toekomstPrompt(functieTitel) }], 800);
+      setToekomstblik(parseJSON(text).punten || []);
+    } catch (e) { console.error(e); setToekomstblik([]); }
+    setToekomstLaden(false);
+  }
 
   // Vergelijken + Roadmap state
   const [functiesLijst, setFunctiesLijst] = useState([]);
@@ -688,7 +699,14 @@ export default function App() {
   function kiesAntwoord(type) {
     const nieuw = { ...antwoorden, [drijfStap]: type };
     setAntwoorden(nieuw);
-    if (drijfStap < DRIJFVEER_VRAGEN.length) setTimeout(() => setDrijfStap(drijfStap + 1), 280);
+    if (drijfStap < DRIJFVEER_VRAGEN.length) {
+      setTimeout(() => setDrijfStap(drijfStap + 1), 280);
+    } else {
+      setTimeout(async () => {
+        setDrijfStap(DRIJFVEER_VRAGEN.length + 1);
+        await genereerDrijfverenProfiel(berekenScores(nieuw));
+      }, 400);
+    }
   }
   function berekenScores(antw) {
     const s = { R: 0, I: 0, A: 0, S: 0, E: 0, C: 0 };
@@ -760,8 +778,8 @@ export default function App() {
       <Stappenbalk huidigeStap={stap} hoogsteBezochte={hoogsteBezochte} voltooidValideren={voltooidValideren} gaNaar={gaNaarStap} />
       <div className="niet-printen" style={{ position: "fixed", bottom: 14, right: 18, display: "flex", alignItems: "center", gap: 8, zIndex: 50 }}>
         <span style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>Powered by</span>
-        <a href="https://www.brightworksolutions.nl" target="_blank" rel="noopener noreferrer" style={{ background: "rgba(255,255,255,0.92)", borderRadius: 6, padding: "5px 10px", display: "flex", alignItems: "center", boxShadow: "0 2px 10px rgba(0,0,0,0.25)" }}>
-          <img src="/logo-bright-dark.png" alt="Bright Work Solutions" style={{ height: 30, display: "block" }} />
+        <a href="https://www.brightworksolutions.nl" target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center" }}>
+          <img src="/logo-bright-dark.png" alt="Bright Work Solutions" style={{ height: 34, display: "block", filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.6))" }} />
         </a>
       </div>
 
@@ -922,7 +940,6 @@ export default function App() {
                   <p style={{ fontSize: 12, color: "#999", marginBottom: 24 }}>Duurt nog geen 2 minuten.</p>
                   <button onClick={() => setDrijfStap(1)} style={{ padding: "13px 32px", borderRadius: 6, background: KLEUR.inkt, color: "#fff", border: "none", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Start de test →</button>
                 </div>
-                <OverslaanBlok onOverslaan={() => gaNaarStap("ontwikkelen")} />
               </div>
             )}
             {drijfStap >= 1 && drijfStap <= DRIJFVEER_VRAGEN.length && huidigVraag && (
@@ -930,15 +947,14 @@ export default function App() {
                 <div style={{ maxWidth: 580, width: "100%" }}>
                   <div style={{ marginBottom: 24 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#888", marginBottom: 8 }}><span>Vraag {drijfStap} van {DRIJFVEER_VRAGEN.length}</span></div>
-                    <div style={{ height: 6, background: "#e8e5da", borderRadius: 4 }}><div style={{ height: "100%", background: KLEUR.messing, borderRadius: 4, width: `${((drijfStap - 1) / DRIJFVEER_VRAGEN.length) * 100}%`, transition: "width 0.3s" }} /></div>
+                    <div style={{ height: 6, background: "#e8e5da", borderRadius: 4 }}><div style={{ height: "100%", background: KLEUR.messing, borderRadius: 4, width: `${(drijfStap / DRIJFVEER_VRAGEN.length) * 100}%`, transition: "width 0.3s" }} /></div>
                   </div>
                   <Card style={{ padding: "32px 28px" }}>
                     <div style={{ fontFamily: "Georgia,serif", fontSize: 20, fontWeight: 600, color: KLEUR.inkt, marginBottom: 24, lineHeight: 1.4 }}>{huidigVraag.vraag}</div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                      {huidigVraag.opties.map((opt, i) => { const type = DRIJFVEER_TYPES[opt.type]; const gekozen = antwoorden[drijfStap] === opt.type; return (<button key={i} onClick={() => kiesAntwoord(opt.type)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 18px", borderRadius: 8, border: gekozen ? `2px solid ${type.kleur}` : `2px solid ${KLEUR.lijn}`, background: gekozen ? type.kleur + "18" : KLEUR.papier, cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}><span style={{ flexShrink: 0 }}><DrijfveerIcon type={opt.type} kleur={type.kleur} size={20} /></span><span style={{ fontSize: 14, color: "#333", lineHeight: 1.5 }}>{opt.tekst}</span></button>); })}
+                      {huidigVraag.opties.map((opt, i) => { const type = DRIJFVEER_TYPES[opt.type]; const gekozen = antwoorden[drijfStap] === opt.type; return (<button key={i} onClick={() => kiesAntwoord(opt.type)} style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 18px", borderRadius: 8, border: gekozen ? `2px solid ${type.kleur}` : `2px solid ${KLEUR.lijn}`, background: gekozen ? type.kleur + "18" : KLEUR.papier, cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}><span style={{ flexShrink: 0, width: 30, height: 30, borderRadius: 6, background: type.kleur + "18", display: "flex", alignItems: "center", justifyContent: "center" }}><DrijfveerIcon type={opt.type} kleur={type.kleur} size={20} /></span><span style={{ fontSize: 14, color: "#333", lineHeight: 1.5 }}>{opt.tekst}</span></button>); })}
                     </div>
                   </Card>
-                  {alleBeantwoord && drijfStap === DRIJFVEER_VRAGEN.length && (<div style={{ textAlign: "center", marginTop: 24 }}><button onClick={async () => { const scores = berekenScores(antwoorden); setDrijfStap(DRIJFVEER_VRAGEN.length + 1); await genereerDrijfverenProfiel(scores); }} style={{ padding: "13px 32px", borderRadius: 6, background: KLEUR.inkt, color: "#fff", border: "none", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Bekijk mijn drijfveren →</button></div>)}
                 </div>
               </div>
             )}
@@ -1004,7 +1020,6 @@ export default function App() {
               <div style={{ display: "flex", gap: 12 }}>
                 <button onClick={() => gaNaarStap("roadmap")} style={{ padding: "13px 28px", borderRadius: 6, background: KLEUR.inkt, color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Naar je roadmap →</button>
               </div>
-              {!ontwikkelAdvies && <OverslaanBlok onOverslaan={() => gaNaarStap("roadmap")} />}
             </div>
           </div>
         )}
@@ -1032,7 +1047,8 @@ export default function App() {
         {/* ── STAP: roadmap ── */}
         {stap === "roadmap" && (
           <RoadmapStap gapResultaat={gapResultaat} maakRoadmap={maakRoadmap} roadmapLaden={roadmapLaden} roadmapOpgeslagen={roadmapOpgeslagen}
-            functieTitel={functiesLijst.find(f => f.id === gekozenVergelijkFunctie)?.titel} gaNaarStap={gaNaarStap} />
+            functieTitel={functiesLijst.find(f => f.id === gekozenVergelijkFunctie)?.titel} gaNaarStap={gaNaarStap}
+            toekomstblik={toekomstblik} toekomstLaden={toekomstLaden} genereerToekomstblik={genereerToekomstblik} />
         )}
       </div>
     </div>
@@ -1303,7 +1319,7 @@ function VergelijkStap({ functiesLijst, functiesLaden, laadFuncties, gekozenVerg
 }
 
 // ─── Stap: roadmap maken op basis van de skillsgap ─────────────────────────────
-function RoadmapStap({ gapResultaat, maakRoadmap, roadmapLaden, roadmapOpgeslagen, functieTitel, gaNaarStap }) {
+function RoadmapStap({ gapResultaat, maakRoadmap, roadmapLaden, roadmapOpgeslagen, functieTitel, gaNaarStap, toekomstblik, toekomstLaden, genereerToekomstblik }) {
   if (!gapResultaat || gapResultaat.missing.length === 0) {
     return (
       <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 48, textAlign: "center", gap: 16 }}>
@@ -1326,6 +1342,28 @@ function RoadmapStap({ gapResultaat, maakRoadmap, roadmapLaden, roadmapOpgeslage
               <div style={{ fontSize: 14, color: "#333" }}>{s.label}</div>
             </div>
           ))}
+        </Card>
+
+        <Card style={{ marginBottom: 20 }}>
+          <SectionTitle>Blik op de toekomst van dit vakgebied</SectionTitle>
+          {!toekomstblik && !toekomstLaden && (
+            <>
+              <p style={{ fontSize: 12, color: "#888", marginBottom: 12 }}>Een algemene inschatting van hoe dit vakgebied zich zou kunnen ontwikkelen, geen harde voorspelling.</p>
+              <button onClick={() => genereerToekomstblik(functieTitel)} style={{ padding: "9px 18px", borderRadius: 6, background: "#f5f4f0", color: KLEUR.inkt, border: `1px solid ${KLEUR.lijn}`, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Toon toekomstblik</button>
+            </>
+          )}
+          {toekomstLaden && <p style={{ fontSize: 13, color: "#888" }}>Bezig…</p>}
+          {toekomstblik && toekomstblik.length > 0 && (
+            <>
+              <p style={{ fontSize: 11, color: "#aaa", marginBottom: 10, fontStyle: "italic" }}>Een algemene inschatting, geen harde voorspelling.</p>
+              {toekomstblik.map((p, i) => (
+                <div key={i} style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+                  <span style={{ color: KLEUR.messingDonker }}>→</span>
+                  <span style={{ fontSize: 13, color: "#444", lineHeight: 1.6 }}>{p}</span>
+                </div>
+              ))}
+            </>
+          )}
         </Card>
 
         {!roadmapOpgeslagen ? (
@@ -1421,6 +1459,18 @@ Antwoord ALLEEN met dit JSON (geen backticks):
   "verhaal": {"alinea1":"","alinea2":"","alinea3":""},
   "top5": [{"skill":"","toelichting":""}]
 }`;
+}
+
+function toekomstPrompt(functieTitel) {
+  return `Je bent een arbeidsmarktexpert. Geef een algemene inschatting (geen harde voorspelling) van hoe het vakgebied van "${functieTitel}" er de komende jaren waarschijnlijk uit gaat zien, en welke skills daardoor belangrijker zouden kunnen worden.
+
+Regels:
+- Precies 3 punten
+- Kort en concreet, geen vage algemeenheden
+- Wees eerlijk over onzekerheid, dit zijn algemene trends, geen garanties
+
+Antwoord ALLEEN met dit JSON (geen backticks):
+{"punten": ["", "", ""]}`;
 }
 
 function drijfverenPrompt(scores, top3) {
