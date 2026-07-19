@@ -177,9 +177,9 @@ const STAPPEN = [
   { id: "functies", label: "Functies" },
   { id: "taken", label: "Taken" },
   { id: "valideren", label: "Skills" },
-  { id: "profiel", label: "Profiel" },
-  { id: "vergelijken", label: "Vergelijk" },
   { id: "drijfveren", label: "Drijfveren" },
+  { id: "profiel", label: "Skillsprofiel" },
+  { id: "vergelijken", label: "Vergelijk" },
   { id: "ontwikkelen", label: "Ontwikkelen" },
   { id: "roadmap", label: "Roadmap" },
 ];
@@ -189,9 +189,9 @@ const ROUTE_UITLEG = [
   { titel: "Functies", tekst: "Kies welke functies we uitwerken" },
   { titel: "Taken", tekst: "Check welke taken bij jou horen" },
   { titel: "Skills", tekst: "Geef aan hoe goed je elke skill beheerst" },
-  { titel: "Profiel", tekst: "Bekijk je complete skillsprofiel" },
-  { titel: "Vergelijk", tekst: "Zet jezelf af tegen een functie" },
   { titel: "Drijfveren", tekst: "Ontdek wat jou motiveert" },
+  { titel: "Skillsprofiel", tekst: "Bekijk je complete verhaal tot nu toe" },
+  { titel: "Vergelijk", tekst: "Zet jezelf af tegen een functie" },
   { titel: "Ontwikkelen", tekst: "Bepaal waar je naartoe wil" },
   { titel: "Roadmap", tekst: "Krijg concrete vervolgstappen" },
 ];
@@ -914,7 +914,7 @@ export default function App() {
                 );
               })}
               <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 8 }}>
-                <button onClick={async () => { await handOpslaan(); gaNaarStap("profiel"); }} style={{ padding: "13px 28px", borderRadius: 6, background: KLEUR.inkt, color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                <button onClick={async () => { await handOpslaan(); gaNaarStap("drijfveren"); }} style={{ padding: "13px 28px", borderRadius: 6, background: KLEUR.inkt, color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
                   Volgende stap →
                 </button>
                 {saveStatus && (
@@ -978,7 +978,7 @@ export default function App() {
                         <p style={{ fontSize: 14, color: "#333", lineHeight: 1.75, marginBottom: 0 }}>{interpretatie.werkvoorkeur}</p>
                       </Card>
                     )}
-                    <button onClick={() => gaNaarStap("ontwikkelen")} style={{ padding: "13px 28px", borderRadius: 6, background: KLEUR.inkt, color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Volgende stap →</button>
+                    <button onClick={() => gaNaarStap("profiel")} style={{ padding: "13px 28px", borderRadius: 6, background: KLEUR.inkt, color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Volgende stap →</button>
                     <p style={{ fontSize: 11, color: "#8a94a0", marginTop: 14 }}>Gebaseerd op een erkend model uit de loopbaanpsychologie.</p>
                   </div>
                 </div>
@@ -1114,7 +1114,7 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
 
         <div style={{ textAlign: "center", marginBottom: 22 }}>
           <div className="skillsprofiel-titel" style={{ fontFamily: "Georgia,serif", fontSize: 28, fontWeight: 700, color: "#ffffff" }}>Skillsprofiel{cvData.naam ? ` ${cvData.naam}` : ""}</div>
-          <p className="skillsprofiel-subtitel" style={{ fontSize: 14, color: "#c4cdd4", marginTop: 8, maxWidth: 440, lineHeight: 1.6, marginLeft: "auto", marginRight: "auto" }}>Waar je goed in bent, wat je erbij hebt geleerd, en wat je nog zou willen leren, allemaal in één overzicht om trots op te zijn.</p>
+
         </div>
 
         {/* Jouw verhaal + top 5 — het hoogtepunt */}
@@ -1237,11 +1237,10 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
           </div>
         )}
 
-        <div className="niet-printen" style={{ textAlign: "center", padding: "20px 0" }}>
+        <div className="niet-printen" style={{ textAlign: "center", padding: "10px 0 20px" }}>
           <button onClick={() => gaNaarStap("vergelijken")} style={{ padding: "13px 28px", borderRadius: 6, background: KLEUR.inkt, color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-            Vergelijk met een functie →
+            Volgende stap: vergelijk met een functie →
           </button>
-          <p style={{ fontSize: 12, color: "#888", marginTop: 10 }}>Zie precies wat je al kan, en wat je nog zou kunnen ontwikkelen voor een andere rol.</p>
         </div>
 
         <div className="niet-printen" style={{ display: "flex", justifyContent: "center", gap: 18, alignItems: "center", marginTop: 10, paddingTop: 18, borderTop: "1px solid rgba(244,241,232,0.12)" }}>
@@ -1306,7 +1305,7 @@ function VergelijkStap({ functiesLijst, functiesLaden, laadFuncties, gekozenVerg
                     {gapResultaat.missing.map((s, i) => <span key={i} style={{ fontSize: 12, padding: "5px 12px", borderRadius: 6, background: "#fffbeb", color: "#92400e", border: "1px solid #fde68a" }}>{s.label}{s.verplicht === false ? " (niet verplicht)" : ""}</span>)}
                   </div>
                 </Card>
-                <button onClick={() => gaNaarStap("drijfveren")} style={{ padding: "13px 28px", borderRadius: 6, background: KLEUR.inkt, color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                <button onClick={() => gaNaarStap("ontwikkelen")} style={{ padding: "13px 28px", borderRadius: 6, background: KLEUR.inkt, color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
                   Volgende stap →
                 </button>
               </>
