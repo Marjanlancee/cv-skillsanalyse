@@ -182,6 +182,7 @@ const STAPPEN = [
   { id: "vergelijken", label: "Vergelijk" },
   { id: "ontwikkelen", label: "Ontwikkelen" },
   { id: "roadmap", label: "Roadmap" },
+  { id: "feedback", label: "Feedback" },
 ];
 
 const ROUTE_UITLEG = [
@@ -194,6 +195,7 @@ const ROUTE_UITLEG = [
   { titel: "Vergelijk", tekst: "Zet jezelf af tegen een functie" },
   { titel: "Ontwikkelen", tekst: "Bepaal waar je naartoe wil" },
   { titel: "Roadmap", tekst: "Krijg concrete vervolgstappen" },
+  { titel: "Feedback", tekst: "Bekijk feedback van collega's" },
 ];
 
 function SkillsModel() {
@@ -276,7 +278,7 @@ function BeoordelingRij({ tekst, waarde, onChange }) {
 }
 
 // ─── Stappenbalk bovenaan: laat zien waar je bent, en waar je heen kan ─────────
-function Stappenbalk({ huidigeStap, hoogsteBezochte, voltooidValideren, gaNaar }) {
+function Stappenbalk({ huidigeStap, hoogsteBezochte, voltooidValideren, gaNaar, aantalFeedback }) {
   const huidigIdx = STAPPEN.findIndex(s => s.id === huidigeStap);
   return (
     <div className="niet-printen" style={{ background: "#fff", borderBottom: `1px solid ${KLEUR.lijn}`, padding: "14px 32px", display: "flex", alignItems: "center", gap: 4, overflowX: "auto" }}>
@@ -290,6 +292,7 @@ function Stappenbalk({ huidigeStap, hoogsteBezochte, voltooidValideren, gaNaar }
               onClick={() => bereikbaar && gaNaar(s.id)}
               disabled={!bereikbaar}
               style={{
+                position: "relative",
                 display: "flex", alignItems: "center", gap: 7, padding: "6px 12px", borderRadius: 20, border: "none",
                 background: actief ? KLEUR.inkt : "transparent",
                 color: actief ? "#fff" : bereikbaar ? KLEUR.inkt : "#c2bda f",
@@ -300,6 +303,9 @@ function Stappenbalk({ huidigeStap, hoogsteBezochte, voltooidValideren, gaNaar }
                 {voltooid && !actief ? "✓" : i + 1}
               </span>
               {s.label}
+              {s.id === "feedback" && aantalFeedback > 0 && (
+                <span style={{ position: "absolute", top: -4, right: -4, background: "#c0392b", color: "#fff", fontSize: 9, fontWeight: 700, borderRadius: "50%", width: 16, height: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>{aantalFeedback}</span>
+              )}
             </button>
             {i < STAPPEN.length - 1 && <span style={{ color: KLEUR.lijn, margin: "0 2px" }}>–</span>}
           </div>
@@ -484,6 +490,12 @@ export default function App() {
   const [ontvangenFeedback, setOntvangenFeedback] = useState({}); // { functieIdx: { laden, reacties: [{naam, reacties: [{tekst,score,toelichting}]}] } }
 
   const [alleFeedback, setAlleFeedback] = useState(null); // null = nog niet geladen
+  const aantalFeedback = alleFeedback?.items?.reduce((som, it) => som + it.reacties.length, 0) || 0;
+
+  useEffect(() => {
+    if (sessie && !alleFeedback) haalAlleFeedbackOp();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessie]);
 
   async function haalAlleFeedbackOp() {
     setAlleFeedback({ laden: true });
@@ -841,7 +853,7 @@ export default function App() {
     <div className="sterrenhemel" style={{ fontFamily: "'Segoe UI',sans-serif", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       <style>{sterrenCSS}</style>
       <Kop sessie={sessie} onUitloggen={() => supabase.auth.signOut()} />
-      <Stappenbalk huidigeStap={stap} hoogsteBezochte={hoogsteBezochte} voltooidValideren={voltooidValideren} gaNaar={gaNaarStap} />
+      <Stappenbalk huidigeStap={stap} hoogsteBezochte={hoogsteBezochte} voltooidValideren={voltooidValideren} gaNaar={gaNaarStap} aantalFeedback={aantalFeedback} />
       <div className="niet-printen" style={{ position: "fixed", bottom: 14, right: 18, display: "flex", alignItems: "center", gap: 8, zIndex: 50 }}>
         <span style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>Powered by</span>
         <a href="https://www.brightworksolutions.nl" target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center" }}>
@@ -978,17 +990,22 @@ export default function App() {
                     </div>
                     <div style={{ padding: "0 22px 20px", borderTop: `1px solid ${KLEUR.lijn}`, paddingTop: 16 }}>
                       {!feedbackLinks[idx]?.link ? (
-                        <button onClick={() => vraagFeedback(idx)} disabled={feedbackLinks[idx]?.laden} style={{ padding: "9px 18px", borderRadius: 6, background: "#fff", color: KLEUR.inkt, border: `1px solid ${KLEUR.lijn}`, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-                          {feedbackLinks[idx]?.laden ? "Bezig…" : "💬 Vraag feedback op deze functie"}
-                        </button>
+                        <>
+                          <p style={{ fontSize: 12, color: "#888", marginBottom: 10, lineHeight: 1.6 }}>Wil je weten hoe een collega of leidinggevende jouw skills ziet? Maak een link aan, kopieer 'm en mail 'm door. Zij geven dan hun feedback, zonder dat ze hoeven in te loggen.</p>
+                          <button onClick={() => vraagFeedback(idx)} disabled={feedbackLinks[idx]?.laden} style={{ padding: "9px 18px", borderRadius: 6, background: "#fff", color: KLEUR.inkt, border: `1px solid ${KLEUR.lijn}`, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                            {feedbackLinks[idx]?.laden ? "Bezig…" : "💬 Vraag feedback op deze functie"}
+                          </button>
+                        </>
                       ) : (
-                        <div style={{ fontSize: 12, color: "#166534", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                          ✓ Link aangemaakt (14 dagen geldig):
-                          <input readOnly value={feedbackLinks[idx].link} onClick={e => e.target.select()} style={{ fontSize: 11, padding: "4px 8px", borderRadius: 4, border: "1px solid #d0cfc8", width: 260 }} />
-                          <button onClick={() => navigator.clipboard.writeText(feedbackLinks[idx].link)} style={{ fontSize: 11, padding: "4px 10px", borderRadius: 4, background: KLEUR.inkt, color: "#fff", border: "none", cursor: "pointer" }}>Kopieer</button>
+                        <div>
+                          <p style={{ fontSize: 12, color: "#166534", marginBottom: 8 }}>✓ Link aangemaakt (14 dagen geldig). Kopieer 'm en mail 'm naar je collega of leidinggevende:</p>
+                          <div style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                            <input readOnly value={feedbackLinks[idx].link} onClick={e => e.target.select()} style={{ fontSize: 11, padding: "4px 8px", borderRadius: 4, border: "1px solid #d0cfc8", width: 260 }} />
+                            <button onClick={() => navigator.clipboard.writeText(feedbackLinks[idx].link)} style={{ fontSize: 11, padding: "4px 10px", borderRadius: 4, background: KLEUR.inkt, color: "#fff", border: "none", cursor: "pointer" }}>Kopieer</button>
+                          </div>
                         </div>
                       )}
-                      <p style={{ fontSize: 11, color: "#999", marginTop: 8 }}>Ontvangen feedback vind je terug in je Skillsprofiel.</p>
+                      <p style={{ fontSize: 11, color: "#999", marginTop: 8 }}>Ontvangen feedback vind je terug bij stap 10 (Feedback) in de stappenbalk.</p>
                     </div>
                   </div>
                 );
@@ -1146,13 +1163,16 @@ export default function App() {
             functieTitel={functiesLijst.find(f => f.id === gekozenVergelijkFunctie)?.titel} gaNaarStap={gaNaarStap}
             toekomstblik={toekomstblik} toekomstLaden={toekomstLaden} genereerToekomstblik={genereerToekomstblik} />
         )}
+
+        {/* ── STAP: feedback ── */}
+        {stap === "feedback" && <FeedbackStap alleFeedback={alleFeedback} />}
       </div>
     </div>
   );
 }
 
 // ─── Kop (header) ───────────────────────────────────────────────────────────
-function Kop({ sessie, onUitloggen }) {
+function Kop({ sessie, onUitloggen, onFeedback }) {
   return (
     <div className="niet-printen" style={{ background: KLEUR.inkt, padding: "18px 32px", display: "flex", alignItems: "center", gap: 14 }}>
       <div>
@@ -1161,10 +1181,54 @@ function Kop({ sessie, onUitloggen }) {
       </div>
       {sessie && (
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14 }}>
+          <button onClick={onFeedback} style={{ fontSize: 12, color: "#a8b3bd", background: "none", border: `1px solid #45566b`, borderRadius: 6, padding: "6px 12px", cursor: "pointer", fontFamily: "inherit" }}>💬 Ontvangen feedback</button>
           <span style={{ fontSize: 12, color: "#a8b3bd" }}>{sessie.user.email}</span>
           <button onClick={onUitloggen} style={{ fontSize: 12, color: KLEUR.messing, background: "none", border: `1px solid ${KLEUR.messing}`, borderRadius: 6, padding: "6px 12px", cursor: "pointer", fontFamily: "inherit" }}>Uitloggen</button>
         </div>
       )}
+    </div>
+  );
+}
+
+function FeedbackStap({ alleFeedback }) {
+  const items = (alleFeedback?.items || []).filter(it => it.reacties.length > 0);
+  return (
+    <div style={{ flex: 1, padding: "28px 32px", overflowY: "auto" }}>
+      <div style={{ maxWidth: 700, margin: "0 auto" }}>
+        <div style={{ fontFamily: "Georgia,serif", fontSize: 22, fontWeight: 600, color: "#fff", marginBottom: 8 }}>Ontvangen feedback</div>
+        <p style={{ fontSize: 13, color: "#c4cdd4", lineHeight: 1.6, marginBottom: 20 }}>Hier verschijnt automatisch alle feedback die collega's of leidinggevenden via een link hebben achtergelaten.</p>
+
+        <div style={{ background: "radial-gradient(circle at 50% 30%, #f1f2fb 0%, #d3d6f0 60%, #a8ade0 100%)", borderRadius: 12, padding: 30, boxShadow: "0 16px 36px rgba(92,98,160,0.35)", border: "1px solid #9299d6" }}>
+          {alleFeedback?.laden && <p style={{ fontSize: 13, color: "#3c3f6b" }}>Bezig met ophalen…</p>}
+          {!alleFeedback?.laden && items.length === 0 && <p style={{ fontSize: 13, color: "#3c3f6b" }}>Nog geen feedback ontvangen. Vraag 'm aan bij de stap "Skills".</p>}
+
+          {items.map((item, ii) => (
+            <div key={ii} style={{ marginBottom: 20, paddingBottom: 20, borderBottom: ii < items.length - 1 ? "1px solid rgba(92,98,160,0.25)" : "none" }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#2a2d4d", marginBottom: 12 }}>Over: {item.functieTitel}</div>
+              {item.reacties.map((r, ri) => (
+                <div key={ri} style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "#3c3f6b", marginBottom: 10 }}>
+                    Feedback van {r.naam_feedbackgever}
+                    <span style={{ fontWeight: 400, color: "#6a6d8f" }}> · {new Date(r.aangemaakt_op).toLocaleDateString("nl-NL", { day: "numeric", month: "long", year: "numeric" })}</span>
+                  </div>
+                  {item.skillsSnapshot.map((s, si) => {
+                    const gevonden = r.reacties.find(x => x.tekst === s.tekst);
+                    const feedbackScore = gevonden ? gevonden.score : 3;
+                    return (
+                      <div key={si} style={{ background: "rgba(255,255,255,0.5)", borderRadius: 8, padding: "10px 14px", marginBottom: 8 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: "#2a2d4d", marginBottom: 6 }}>{s.tekst}</div>
+                        <div style={{ fontSize: 11, color: "#3a3d5c", marginBottom: 3 }}>Jij: <strong>{NIVEAUS[s.eigenNiveau - 1]}</strong></div>
+                        <div style={{ fontSize: 11, color: "#3a3d5c" }}>{r.naam_feedbackgever}: <strong>{NIVEAUS[feedbackScore - 1]}</strong></div>
+                        {gevonden?.toelichting && <div style={{ fontSize: 11, color: "#6a6d8f", marginTop: 6, fontStyle: "italic" }}>"{gevonden.toelichting}"</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1293,43 +1357,6 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
                 <p style={{ fontSize: 13, color: "#3a3d5c", lineHeight: 1.7, marginBottom: 0 }}>{drijfResultaat.interpretatie.werkvoorkeur}</p>
               </>
             )}
-          </Card>
-        )}
-
-        {/* Ontvangen feedback: achter een knop, geen radar maar een simpele score-vergelijking per skill */}
-        {alleFeedback && !alleFeedback.laden && alleFeedback.items?.some(it => it.reacties.length > 0) && (
-          <Card style={{ ...kaartStijl, marginBottom: 16 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: toonFeedback ? 16 : 0 }}>
-              <SectionTitle>Ontvangen feedback</SectionTitle>
-              <button onClick={() => setToonFeedback(v => !v)} style={{ padding: "8px 16px", borderRadius: 6, background: "#3c3f6b", color: "#fff", border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-                {toonFeedback ? "Verberg" : "Bekijk ontvangen feedback"}
-              </button>
-            </div>
-            {toonFeedback && alleFeedback.items.filter(it => it.reacties.length > 0).map((item, ii) => (
-              <div key={ii} style={{ marginBottom: 20, paddingBottom: 20, borderBottom: ii < alleFeedback.items.filter(x => x.reacties.length > 0).length - 1 ? "1px solid rgba(92,98,160,0.25)" : "none" }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#2a2d4d", marginBottom: 12 }}>Over: {item.functieTitel}</div>
-                {item.reacties.map((r, ri) => (
-                  <div key={ri} style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: "#3c3f6b", marginBottom: 10 }}>
-                      Feedback van {r.naam_feedbackgever}
-                      <span style={{ fontWeight: 400, color: "#6a6d8f" }}> · {new Date(r.aangemaakt_op).toLocaleDateString("nl-NL", { day: "numeric", month: "long", year: "numeric" })}</span>
-                    </div>
-                    {item.skillsSnapshot.map((s, si) => {
-                      const gevonden = r.reacties.find(x => x.tekst === s.tekst);
-                      const feedbackScore = gevonden ? gevonden.score : 3;
-                      return (
-                        <div key={si} style={{ background: "rgba(255,255,255,0.5)", borderRadius: 8, padding: "10px 14px", marginBottom: 8 }}>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: "#2a2d4d", marginBottom: 6 }}>{s.tekst}</div>
-                          <div style={{ fontSize: 11, color: "#3a3d5c", marginBottom: 3 }}>Jij: <strong>{NIVEAUS[s.eigenNiveau - 1]}</strong></div>
-                          <div style={{ fontSize: 11, color: "#3a3d5c" }}>{r.naam_feedbackgever}: <strong>{NIVEAUS[feedbackScore - 1]}</strong></div>
-                          {gevonden?.toelichting && <div style={{ fontSize: 11, color: "#6a6d8f", marginTop: 6, fontStyle: "italic" }}>"{gevonden.toelichting}"</div>}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-            ))}
           </Card>
         )}
 
