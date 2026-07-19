@@ -1038,7 +1038,7 @@ export default function App() {
                   <div style={{ fontFamily: "Georgia,serif", fontSize: 22, fontWeight: 600, color: KLEUR.inkt, marginBottom: 12 }}>Wat drijft jou?</div>
                   <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7, marginBottom: 6 }}>5 korte vragen over wat je energie geeft op je werk. Geen goed of fout antwoord, kies gewoon wat het meest bij jou past.</p>
                   <p style={{ fontSize: 12, color: "#999", marginBottom: 24 }}>Duurt nog geen 2 minuten.</p>
-                  <button onClick={() => setDrijfStap(1)} style={{ padding: "13px 32px", borderRadius: 6, background: KLEUR.inkt, color: "#fff", border: "none", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Start de test →</button>
+                  <button onClick={() => { setAntwoorden({}); setDrijfResultaat(null); setDrijfFout(""); setDrijfStap(1); }} style={{ padding: "13px 32px", borderRadius: 6, background: KLEUR.inkt, color: "#fff", border: "none", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Start de test →</button>
                 </div>
               </div>
             )}
@@ -1172,7 +1172,7 @@ export default function App() {
 }
 
 // ─── Kop (header) ───────────────────────────────────────────────────────────
-function Kop({ sessie, onUitloggen, onFeedback }) {
+function Kop({ sessie, onUitloggen }) {
   return (
     <div className="niet-printen" style={{ background: KLEUR.inkt, padding: "18px 32px", display: "flex", alignItems: "center", gap: 14 }}>
       <div>
@@ -1181,7 +1181,6 @@ function Kop({ sessie, onUitloggen, onFeedback }) {
       </div>
       {sessie && (
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14 }}>
-          <button onClick={onFeedback} style={{ fontSize: 12, color: "#a8b3bd", background: "none", border: `1px solid #45566b`, borderRadius: 6, padding: "6px 12px", cursor: "pointer", fontFamily: "inherit" }}>💬 Ontvangen feedback</button>
           <span style={{ fontSize: 12, color: "#a8b3bd" }}>{sessie.user.email}</span>
           <button onClick={onUitloggen} style={{ fontSize: 12, color: KLEUR.messing, background: "none", border: `1px solid ${KLEUR.messing}`, borderRadius: 6, padding: "6px 12px", cursor: "pointer", fontFamily: "inherit" }}>Uitloggen</button>
         </div>
