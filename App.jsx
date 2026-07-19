@@ -483,17 +483,25 @@ export default function App() {
 
   const [ontvangenFeedback, setOntvangenFeedback] = useState({}); // { functieIdx: { laden, reacties: [{naam, reacties: [{tekst,score,toelichting}]}] } }
 
-  async function haalFeedbackOp(functieIdx) {
-    setOntvangenFeedback(prev => ({ ...prev, [functieIdx]: { laden: true } }));
+  const [alleFeedback, setAlleFeedback] = useState(null); // null = nog niet geladen
+
+  async function haalAlleFeedbackOp() {
+    setAlleFeedback({ laden: true });
     try {
-      const functie = cvData.functies[functieIdx];
       const medewerker = await supabase.from("medewerkers").select("id").eq("auth_user_id", sessie.user.id).maybeSingle();
-      const { data: verzoeken } = await supabase.from("feedback_verzoeken").select("id").eq("medewerker_id", medewerker.data.id).eq("functie_titel", functie.titel);
-      const verzoekIds = (verzoeken || []).map(v => v.id);
-      if (verzoekIds.length === 0) { setOntvangenFeedback(prev => ({ ...prev, [functieIdx]: { laden: false, reacties: [] } })); return; }
-      const { data: reacties } = await supabase.from("feedback_reacties").select("naam_feedbackgever, reacties").in("verzoek_id", verzoekIds);
-      setOntvangenFeedback(prev => ({ ...prev, [functieIdx]: { laden: false, reacties: reacties || [] } }));
-    } catch (e) { console.error(e); setOntvangenFeedback(prev => ({ ...prev, [functieIdx]: { laden: false, reacties: [] } })); }
+      const { data: verzoeken } = await supabase.from("feedback_verzoeken").select("id, functie_titel, skills").eq("medewerker_id", medewerker.data.id).order("aangemaakt_op", { ascending: false });
+      if (!verzoeken || verzoeken.length === 0) { setAlleFeedback({ laden: false, items: [] }); return; }
+
+      const verzoekIds = verzoeken.map(v => v.id);
+      const { data: reacties } = await supabase.from("feedback_reacties").select("verzoek_id, naam_feedbackgever, reacties").in("verzoek_id", verzoekIds);
+
+      const items = verzoeken.map(v => ({
+        functieTitel: v.functie_titel,
+        skillsSnapshot: v.skills, // [{tekst, eigenNiveau}], de zelfbeoordeling van tóen
+        reacties: (reacties || []).filter(r => r.verzoek_id === v.id),
+      }));
+      setAlleFeedback({ laden: false, items });
+    } catch (e) { console.error(e); setAlleFeedback({ laden: false, items: [] }); }
   }
 
   // Drijfveren state
@@ -980,44 +988,7 @@ export default function App() {
                           <button onClick={() => navigator.clipboard.writeText(feedbackLinks[idx].link)} style={{ fontSize: 11, padding: "4px 10px", borderRadius: 4, background: KLEUR.inkt, color: "#fff", border: "none", cursor: "pointer" }}>Kopieer</button>
                         </div>
                       )}
-
-                      <button onClick={() => haalFeedbackOp(idx)} style={{ marginTop: 10, padding: "9px 18px", borderRadius: 6, background: "#fff", color: KLEUR.messingDonker, border: `1px solid ${KLEUR.lijn}`, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-                        📊 Bekijk ontvangen feedback
-                      </button>
-
-                      {ontvangenFeedback[idx]?.laden && <p style={{ fontSize: 12, color: "#888", marginTop: 10 }}>Bezig met ophalen…</p>}
-                      {ontvangenFeedback[idx] && !ontvangenFeedback[idx].laden && (
-                        ontvangenFeedback[idx].reacties.length === 0 ? (
-                          <p style={{ fontSize: 12, color: "#888", marginTop: 10 }}>Nog geen feedback ontvangen.</p>
-                        ) : (
-                          <div style={{ marginTop: 16 }}>
-                            {ontvangenFeedback[idx].reacties.map((r, ri) => {
-                              const alleSkillTeksten = (functieSkills[idx] || []).flatMap(tk => [...tk.hardskills, ...tk.softskills].map(s => s.tekst));
-                              const skillsLijst = [...new Set(alleSkillTeksten)];
-                              const eigenScores = skillsLijst.map(s => beoordelingen[s] || 3);
-                              const feedbackScores = skillsLijst.map(s => {
-                                const gevonden = r.reacties.find(x => x.tekst === s);
-                                return gevonden ? gevonden.score : 3;
-                              });
-                              return (
-                                <div key={ri} style={{ marginBottom: 20, paddingBottom: 20, borderBottom: ri < ontvangenFeedback[idx].reacties.length - 1 ? `1px solid ${KLEUR.lijn}` : "none" }}>
-                                  <div style={{ fontSize: 13, fontWeight: 600, color: KLEUR.inkt, marginBottom: 8 }}>Feedback van {r.naam_feedbackgever}</div>
-                                  <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
-                                    <RadarDiagram skills={skillsLijst} eigenScores={eigenScores} feedbackScores={feedbackScores} size={260} />
-                                  </div>
-                                  <div style={{ display: "flex", gap: 14, justifyContent: "center", fontSize: 11, marginBottom: 10 }}>
-                                    <span style={{ color: "#2f6690" }}>■ Jouw inschatting</span>
-                                    <span style={{ color: KLEUR.messingDonker }}>■ {r.naam_feedbackgever}</span>
-                                  </div>
-                                  {r.reacties.filter(x => x.toelichting).map((x, xi) => (
-                                    <div key={xi} style={{ fontSize: 12, color: "#555", padding: "6px 0" }}><strong>{x.tekst}:</strong> {x.toelichting}</div>
-                                  ))}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )
-                      )}
+                      <p style={{ fontSize: 11, color: "#999", marginTop: 8 }}>Ontvangen feedback vind je terug in je Skillsprofiel.</p>
                     </div>
                   </div>
                 );
@@ -1156,6 +1127,7 @@ export default function App() {
             laden={laden === "profielGenereren"} genereerVerhaalEnTop5={genereerVerhaalEnTop5} verhaalFout={verhaalFout}
             copyStory={copyStory} copied={copied} handOpslaan={handOpslaan} saveStatus={saveStatus} escoMatchCount={escoMatchCount}
             nieuwCv={nieuwCv} gaNaarStap={gaNaarStap}
+            alleFeedback={alleFeedback} haalAlleFeedbackOp={haalAlleFeedbackOp}
           />
         )}
 
@@ -1208,9 +1180,10 @@ function LaadScherm({ titel, tekst }) {
 }
 
 // ─── Laatste stap: het complete skillsprofiel ──────────────────────────────────
-function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, drijfResultaat, ontwikkelAdvies, laden, genereerVerhaalEnTop5, verhaalFout, copyStory, copied, handOpslaan, saveStatus, escoMatchCount, nieuwCv, gaNaarStap }) {
+function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, drijfResultaat, ontwikkelAdvies, laden, genereerVerhaalEnTop5, verhaalFout, copyStory, copied, handOpslaan, saveStatus, escoMatchCount, nieuwCv, gaNaarStap, alleFeedback, haalAlleFeedbackOp }) {
   useEffect(() => {
     if (!cvData.verhaal && !laden) genereerVerhaalEnTop5();
+    if (!alleFeedback) haalAlleFeedbackOp();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1319,6 +1292,45 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
                 <p style={{ fontSize: 13, color: "#3a3d5c", lineHeight: 1.7, marginBottom: 0 }}>{drijfResultaat.interpretatie.werkvoorkeur}</p>
               </>
             )}
+          </Card>
+        )}
+
+        {/* Ontvangen feedback, los van de huidige sessie — altijd bij deze persoon horend */}
+        {alleFeedback && !alleFeedback.laden && alleFeedback.items?.some(it => it.reacties.length > 0) && (
+          <Card style={{ ...kaartStijl, marginBottom: 16 }}>
+            <SectionTitle>Ontvangen feedback</SectionTitle>
+            {alleFeedback.items.filter(it => it.reacties.length > 0).map((item, ii) => {
+              const skillsLijst = item.skillsSnapshot.map(s => s.tekst);
+              const eigenScores = item.skillsSnapshot.map(s => s.eigenNiveau);
+              return (
+                <div key={ii} style={{ marginBottom: 20, paddingBottom: 20, borderBottom: ii < alleFeedback.items.filter(x => x.reacties.length > 0).length - 1 ? "1px solid rgba(92,98,160,0.25)" : "none" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#2a2d4d", marginBottom: 12 }}>Over: {item.functieTitel}</div>
+                  {item.reacties.map((r, ri) => {
+                    const feedbackScores = item.skillsSnapshot.map(s => {
+                      const gevonden = r.reacties.find(x => x.tekst === s.tekst);
+                      return gevonden ? gevonden.score : 3;
+                    });
+                    return (
+                      <div key={ri} style={{ marginBottom: 16 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: "#3c3f6b", marginBottom: 6 }}>Feedback van {r.naam_feedbackgever}</div>
+                        {skillsLijst.length >= 3 ? (
+                          <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}>
+                            <RadarDiagram skills={skillsLijst} eigenScores={eigenScores} feedbackScores={feedbackScores} size={240} />
+                          </div>
+                        ) : (
+                          skillsLijst.map((s, si) => (
+                            <div key={si} style={{ fontSize: 12, color: "#3a3d5c", padding: "4px 0" }}>{s}: jij zei {NIVEAUS[eigenScores[si] - 1]}, {r.naam_feedbackgever} zei {NIVEAUS[feedbackScores[si] - 1]}</div>
+                          ))
+                        )}
+                        {r.reacties.filter(x => x.toelichting).map((x, xi) => (
+                          <div key={xi} style={{ fontSize: 12, color: "#3a3d5c", padding: "4px 0" }}><strong>{x.tekst}:</strong> {x.toelichting}</div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
           </Card>
         )}
 
