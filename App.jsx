@@ -104,13 +104,30 @@ async function slaEscoMatchOp(skillId, escoMatch) {
 
 // ─── Drijfveren types ────────────────────────────────────────────────────────
 const DRIJFVEER_TYPES = {
-  R: { label: "De Maker", emoji: "🔧", kleur: "#c17a3a", omschrijving: "Jij houdt van praktisch werken en dingen voor elkaar krijgen. Je werkt graag met je handen of in de buitenlucht en ziet resultaat van je werk." },
-  I: { label: "De Denker", emoji: "🔬", kleur: "#2f6690", omschrijving: "Jij wordt gedreven door kennis en inzicht. Je analyseert graag, stelt vragen en wil begrijpen hoe dingen werken." },
-  A: { label: "De Creator", emoji: "🎨", kleur: "#7a5aa0", omschrijving: "Jij haalt energie uit creëren en vernieuwen. Je denkt buiten de kaders en wil iets neerzetten dat uniek en origineel is." },
-  S: { label: "De Helper", emoji: "🤝", kleur: "#4a8a5c", omschrijving: "Jij doet het voor de mensen. Je begeleidt, ondersteunt en verbindt, en dat geeft jou energie." },
-  E: { label: "De Leider", emoji: "🚀", kleur: "#b5482f", omschrijving: "Jij wil impact maken. Je overtuigt, neemt initiatief en stuurt aan op resultaat en groei." },
-  C: { label: "De Organisator", emoji: "📋", kleur: "#1f7a6c", omschrijving: "Jij houdt van structuur en overzicht. Je werkt nauwkeurig, betrouwbaar en zorgt dat alles goed geregeld is." },
+  R: { label: "De Maker", kleur: "#c17a3a", omschrijving: "Jij houdt van praktisch werken en dingen voor elkaar krijgen. Je werkt graag met je handen of in de buitenlucht en ziet resultaat van je werk." },
+  I: { label: "De Denker", kleur: "#2f6690", omschrijving: "Jij wordt gedreven door kennis en inzicht. Je analyseert graag, stelt vragen en wil begrijpen hoe dingen werken." },
+  A: { label: "De Creator", kleur: "#7a5aa0", omschrijving: "Jij haalt energie uit creëren en vernieuwen. Je denkt buiten de kaders en wil iets neerzetten dat uniek en origineel is." },
+  S: { label: "De Helper", kleur: "#4a8a5c", omschrijving: "Jij doet het voor de mensen. Je begeleidt, ondersteunt en verbindt, en dat geeft jou energie." },
+  E: { label: "De Leider", kleur: "#b5482f", omschrijving: "Jij wil impact maken. Je overtuigt, neemt initiatief en stuurt aan op resultaat en groei." },
+  C: { label: "De Organisator", kleur: "#1f7a6c", omschrijving: "Jij houdt van structuur en overzicht. Je werkt nauwkeurig, betrouwbaar en zorgt dat alles goed geregeld is." },
 };
+
+// ─── Eigen lijntekening-icoontjes per drijfveer-type (i.p.v. emoji) ────────────
+function DrijfveerIcon({ type, kleur, size = 22 }) {
+  const paden = {
+    R: <path d="M18 6 L14 10 L16 12 L20 8 L21 9 C22 11 20 13 18 12 L8 22 C7 23 5 23 4 22 C3 21 3 19 4 18 L14 8 C13 6 15 4 17 5 Z" />,
+    I: <><circle cx="11" cy="11" r="6" /><line x1="16" y1="16" x2="21" y2="21" /></>,
+    A: <path d="M4 20 L4 16 L16 4 L20 8 L8 20 Z M13 7 L17 11" />,
+    S: <path d="M12 21 C7 17 3 14 3 9.5 C3 6.5 5.5 4 8.5 4 C10 4 11.3 4.8 12 6 C12.7 4.8 14 4 15.5 4 C18.5 4 21 6.5 21 9.5 C21 14 17 17 12 21 Z" />,
+    E: <path d="M5 3 L5 21 M5 4 L18 4 L14 8 L18 12 L5 12" />,
+    C: <><rect x="4" y="4" width="16" height="16" rx="1" /><line x1="8" y1="9" x2="16" y2="9" /><line x1="8" y1="13" x2="16" y2="13" /><line x1="8" y1="17" x2="13" y2="17" /></>,
+  };
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={kleur} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      {paden[type]}
+    </svg>
+  );
+}
 
 const DRIJFVEER_VRAGEN = [
   { id: 1, vraag: "Waar krijg jij het meeste energie van op je werk?", opties: [
@@ -160,11 +177,23 @@ const STAPPEN = [
   { id: "functies", label: "Functies" },
   { id: "taken", label: "Taken" },
   { id: "valideren", label: "Skills" },
-  { id: "drijfveren", label: "Drijfveren" },
-  { id: "ontwikkelen", label: "Ontwikkelen" },
   { id: "profiel", label: "Profiel" },
   { id: "vergelijken", label: "Vergelijk" },
+  { id: "drijfveren", label: "Drijfveren" },
+  { id: "ontwikkelen", label: "Ontwikkelen" },
   { id: "roadmap", label: "Roadmap" },
+];
+
+const ROUTE_UITLEG = [
+  { titel: "CV", tekst: "Upload je CV, wij lezen 'm" },
+  { titel: "Functies", tekst: "Kies welke functies we uitwerken" },
+  { titel: "Taken", tekst: "Check welke taken bij jou horen" },
+  { titel: "Skills", tekst: "Geef aan hoe goed je elke skill beheerst" },
+  { titel: "Profiel", tekst: "Bekijk je complete skillsprofiel" },
+  { titel: "Vergelijk", tekst: "Zet jezelf af tegen een functie" },
+  { titel: "Drijfveren", tekst: "Ontdek wat jou motiveert" },
+  { titel: "Ontwikkelen", tekst: "Bepaal waar je naartoe wil" },
+  { titel: "Roadmap", tekst: "Krijg concrete vervolgstappen" },
 ];
 
 function SkillsModel() {
@@ -194,7 +223,7 @@ function SkillsLegenda() {
     <div style={{ display: "flex", gap: 20, flexWrap: "wrap", padding: "12px 16px", background: KLEUR.papier, border: `1px solid ${KLEUR.lijn}`, borderRadius: 8, marginBottom: 18, fontSize: 12, color: "#555" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 12, height: 12, borderRadius: 3, background: "#eef2ff", border: "1px solid #c7d2fe", display: "inline-block" }} /> Hardskill: vakinhoudelijk, aan te leren</div>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 12, height: 12, borderRadius: 3, background: "#fef3c7", border: "1px solid #fde68a", display: "inline-block" }} /> Softskill: persoonlijk, wie je bent</div>
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>🔗 code: geverifieerde koppeling, klik om te checken</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>🔗 code</div>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>⚠️ geen match: geen passende skill gevonden</div>
     </div>
   );
@@ -333,6 +362,27 @@ function LoginScherm({ onIngelogd }) {
 }
 
 // ─── Overslaan-knop met uitleg (voor optionele stappen) ────────────────────────
+// ─── Routekaart: metro-lijn stijl overzicht van de hele reis ──────────────────
+function RouteKaart() {
+  return (
+    <div style={{ maxWidth: 420, margin: "36px auto 0", textAlign: "left" }}>
+      <div style={{ fontSize: 11, color: "#8a94a0", letterSpacing: "1px", textTransform: "uppercase", marginBottom: 14, textAlign: "center" }}>Dit is de reis die je gaat maken</div>
+      {ROUTE_UITLEG.map((s, i) => (
+        <div key={i} style={{ display: "flex", gap: 14 }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+            <div style={{ width: 9, height: 9, borderRadius: "50%", background: KLEUR.messing, flexShrink: 0 }} />
+            {i < ROUTE_UITLEG.length - 1 && <div style={{ width: 2, flex: 1, background: "rgba(184,134,63,0.35)", minHeight: 20 }} />}
+          </div>
+          <div style={{ paddingBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>{s.titel}</div>
+            <div style={{ fontSize: 12, color: "#a8b3bd", marginTop: 1 }}>{s.tekst}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function OverslaanBlok({ onOverslaan }) {
   return (
     <div style={{ textAlign: "center", marginTop: 18, padding: "14px 18px", background: KLEUR.papier, borderRadius: 8, border: `1px dashed ${KLEUR.lijn}` }}>
@@ -721,17 +771,18 @@ export default function App() {
             <div style={{ maxWidth: 460, width: "100%", textAlign: "center" }}>
               <div style={{ fontFamily: "Georgia,serif", fontSize: 30, fontWeight: 700, color: "#fff", marginBottom: 14 }}>Jouw skillsprofiel</div>
               <p style={{ fontSize: 12, color: "#c4cdd4", lineHeight: 1.65, marginBottom: 28, maxWidth: 400, marginLeft: "auto", marginRight: "auto", fontStyle: "italic" }}>
-                Je leert je hele leven skills: op school, maar net zo goed thuis en op je werk. Een diploma is waardevol, maar vertelt maar een deel van het verhaal. Op de werkvloer heb je vaak veel meer geleerd dan je zelf beseft, en dat brengen we hier in kaart.
+                Je leert je hele leven bij: op school, maar net zo goed thuis en op je werk. Een diploma is waardevol, maar vertelt maar een deel van het verhaal. Op de werkvloer heb je vaak veel meer geleerd dan je zelf beseft, en dat brengen we hier in kaart.
               </p>
               <div onClick={() => fileInputRef.current.click()} onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={e => { e.preventDefault(); setDragging(false); handleFile(e.dataTransfer.files[0]); }}
                 style={{ background: dragging ? "#eef4fb" : "linear-gradient(180deg,#f4f8fc,#e9f0f8)", borderRadius: 10, border: `2px dashed ${dragging ? KLEUR.messing : "#9fb4c9"}`, padding: "44px 36px", textAlign: "center", cursor: "pointer", boxShadow: "0 12px 34px rgba(15,25,35,0.35)" }}>
                 <div style={{ fontSize: 40 }}>📋</div>
                 <div style={{ fontFamily: "Georgia,serif", fontSize: 20, color: KLEUR.inkt, margin: "12px 0 6px" }}>Upload je CV</div>
-                <p style={{ fontSize: 14, color: "#555", lineHeight: 1.6, marginBottom: 8 }}>Wij lezen 'm en zoeken uit wat je allemaal kan, jij hoeft niks over te typen.</p>
+                <p style={{ fontSize: 14, color: "#555", lineHeight: 1.6, marginBottom: 8 }}>Wij lezen je CV en zoeken uit wat je allemaal kan, jij hoeft niks over te typen.</p>
                 <div style={{ fontSize: 13, color: "#888", lineHeight: 1.6, marginBottom: 20 }}>Sleep een PDF of Word-bestand hierheen, of klik om te bladeren.</div>
                 <input type="file" ref={fileInputRef} accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style={{ display: "none" }} onChange={e => handleFile(e.target.files[0])} />
                 <button style={{ padding: "12px 28px", borderRadius: 6, background: KLEUR.inkt, color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>📁 Kies PDF of Word-bestand</button>
               </div>
+              <RouteKaart />
             </div>
           </div>
         )}
@@ -843,7 +894,7 @@ export default function App() {
                 );
               })}
               <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 8 }}>
-                <button onClick={async () => { await handOpslaan(); gaNaarStap("drijfveren"); }} style={{ padding: "13px 28px", borderRadius: 6, background: KLEUR.inkt, color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                <button onClick={async () => { await handOpslaan(); gaNaarStap("profiel"); }} style={{ padding: "13px 28px", borderRadius: 6, background: KLEUR.inkt, color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
                   Volgende stap →
                 </button>
                 {saveStatus && (
@@ -882,7 +933,7 @@ export default function App() {
                   <Card style={{ padding: "32px 28px" }}>
                     <div style={{ fontFamily: "Georgia,serif", fontSize: 20, fontWeight: 600, color: KLEUR.inkt, marginBottom: 24, lineHeight: 1.4 }}>{huidigVraag.vraag}</div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                      {huidigVraag.opties.map((opt, i) => { const type = DRIJFVEER_TYPES[opt.type]; const gekozen = antwoorden[drijfStap] === opt.type; return (<button key={i} onClick={() => kiesAntwoord(opt.type)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 18px", borderRadius: 8, border: gekozen ? `2px solid ${type.kleur}` : `2px solid ${KLEUR.lijn}`, background: gekozen ? type.kleur + "18" : KLEUR.papier, cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}><span style={{ fontSize: 18, flexShrink: 0 }}>{type.emoji}</span><span style={{ fontSize: 14, color: "#333", lineHeight: 1.5 }}>{opt.tekst}</span></button>); })}
+                      {huidigVraag.opties.map((opt, i) => { const type = DRIJFVEER_TYPES[opt.type]; const gekozen = antwoorden[drijfStap] === opt.type; return (<button key={i} onClick={() => kiesAntwoord(opt.type)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 18px", borderRadius: 8, border: gekozen ? `2px solid ${type.kleur}` : `2px solid ${KLEUR.lijn}`, background: gekozen ? type.kleur + "18" : KLEUR.papier, cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}><span style={{ flexShrink: 0 }}><DrijfveerIcon type={opt.type} kleur={type.kleur} size={20} /></span><span style={{ fontSize: 14, color: "#333", lineHeight: 1.5 }}>{opt.tekst}</span></button>); })}
                     </div>
                   </Card>
                   {alleBeantwoord && drijfStap === DRIJFVEER_VRAGEN.length && (<div style={{ textAlign: "center", marginTop: 24 }}><button onClick={async () => { const scores = berekenScores(antwoorden); setDrijfStap(DRIJFVEER_VRAGEN.length + 1); await genereerDrijfverenProfiel(scores); }} style={{ padding: "13px 32px", borderRadius: 6, background: KLEUR.inkt, color: "#fff", border: "none", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Bekijk mijn drijfveren →</button></div>)}
@@ -899,7 +950,7 @@ export default function App() {
                     <div style={{ background: KLEUR.inkt, borderRadius: 10, padding: "24px 28px", marginBottom: 20 }}>
                       <div style={{ fontSize: 12, color: "#a8b3bd", marginBottom: 10, letterSpacing: "0.8px", textTransform: "uppercase" }}>Jouw belangrijkste drijfveren</div>
                       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                        {top3.map(([k], i) => { const t = DRIJFVEER_TYPES[k]; return (<div key={k} style={{ display: "flex", alignItems: "center", gap: 10, background: t.kleur + "25", border: `1px solid ${t.kleur}55`, borderRadius: 8, padding: "10px 16px" }}><span style={{ fontSize: 22 }}>{t.emoji}</span><div><div style={{ fontSize: 11, color: "#a8b3bd", fontWeight: 500 }}>#{i + 1}</div><div style={{ fontSize: 15, fontWeight: 700, color: t.kleur }}>{t.label}</div></div></div>); })}
+                        {top3.map(([k], i) => { const t = DRIJFVEER_TYPES[k]; return (<div key={k} style={{ display: "flex", alignItems: "center", gap: 10, background: t.kleur + "25", border: `1px solid ${t.kleur}55`, borderRadius: 8, padding: "10px 16px" }}><DrijfveerIcon type={k} kleur={t.kleur} size={24} /><div><div style={{ fontSize: 11, color: "#a8b3bd", fontWeight: 500 }}>#{i + 1}</div><div style={{ fontSize: 15, fontWeight: 700, color: t.kleur }}>{t.label}</div></div></div>); })}
                       </div>
                     </div>
                     {interpretatie && (
@@ -949,9 +1000,9 @@ export default function App() {
                 </div>
               )}
               <div style={{ display: "flex", gap: 12 }}>
-                <button onClick={() => gaNaarStap("profiel")} style={{ padding: "13px 28px", borderRadius: 6, background: KLEUR.inkt, color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Naar je skillsprofiel →</button>
+                <button onClick={() => gaNaarStap("roadmap")} style={{ padding: "13px 28px", borderRadius: 6, background: KLEUR.inkt, color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Naar je roadmap →</button>
               </div>
-              {!ontwikkelAdvies && <OverslaanBlok onOverslaan={() => gaNaarStap("profiel")} />}
+              {!ontwikkelAdvies && <OverslaanBlok onOverslaan={() => gaNaarStap("roadmap")} />}
             </div>
           </div>
         )}
@@ -1107,7 +1158,7 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               {drijfTop3.map(([k], i) => { const t = DRIJFVEER_TYPES[k]; return (
                 <div key={k} style={{ display: "flex", alignItems: "center", gap: 8, background: t.kleur + "15", border: `1px solid ${t.kleur}40`, borderRadius: 8, padding: "8px 14px" }}>
-                  <span style={{ fontSize: 18 }}>{t.emoji}</span>
+                  <DrijfveerIcon type={k} kleur={t.kleur} size={18} />
                   <span style={{ fontSize: 13, fontWeight: 600, color: t.kleur }}>{t.label}</span>
                 </div>
               ); })}
@@ -1237,11 +1288,9 @@ function VergelijkStap({ functiesLijst, functiesLaden, laadFuncties, gekozenVerg
                     {gapResultaat.missing.map((s, i) => <span key={i} style={{ fontSize: 12, padding: "5px 12px", borderRadius: 6, background: "#fffbeb", color: "#92400e", border: "1px solid #fde68a" }}>{s.label}{s.verplicht === false ? " (niet verplicht)" : ""}</span>)}
                   </div>
                 </Card>
-                {gapResultaat.missing.length > 0 && (
-                  <button onClick={() => gaNaarStap("roadmap")} style={{ padding: "13px 28px", borderRadius: 6, background: KLEUR.inkt, color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-                    Maak hier een roadmap van →
-                  </button>
-                )}
+                <button onClick={() => gaNaarStap("drijfveren")} style={{ padding: "13px 28px", borderRadius: 6, background: KLEUR.inkt, color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                  Volgende stap →
+                </button>
               </>
             )}
           </>
