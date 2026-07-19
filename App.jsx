@@ -1196,6 +1196,7 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
   const softList = [...softMap.values()];
   const hobbyList = cvData.hobbySkills || [];
   const drijfTop3 = drijfResultaat ? [...drijfResultaat.gesorteerd].slice(0, 3) : null;
+  const [toonFeedback, setToonFeedback] = useState(false);
 
   // Lavendelblauw, midden licht → randen donkerder, met een stevig 3D pop-effect
   const kaartStijl = {
@@ -1295,45 +1296,40 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
           </Card>
         )}
 
-        {/* Ontvangen feedback, los van de huidige sessie — altijd bij deze persoon horend */}
+        {/* Ontvangen feedback: achter een knop, geen radar maar een simpele score-vergelijking per skill */}
         {alleFeedback && !alleFeedback.laden && alleFeedback.items?.some(it => it.reacties.length > 0) && (
           <Card style={{ ...kaartStijl, marginBottom: 16 }}>
-            <SectionTitle>Ontvangen feedback</SectionTitle>
-            {alleFeedback.items.filter(it => it.reacties.length > 0).map((item, ii) => {
-              const skillsLijst = item.skillsSnapshot.map(s => s.tekst);
-              const eigenScores = item.skillsSnapshot.map(s => s.eigenNiveau);
-              return (
-                <div key={ii} style={{ marginBottom: 20, paddingBottom: 20, borderBottom: ii < alleFeedback.items.filter(x => x.reacties.length > 0).length - 1 ? "1px solid rgba(92,98,160,0.25)" : "none" }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#2a2d4d", marginBottom: 12 }}>Over: {item.functieTitel}</div>
-                  {item.reacties.map((r, ri) => {
-                    const feedbackScores = item.skillsSnapshot.map(s => {
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: toonFeedback ? 16 : 0 }}>
+              <SectionTitle>Ontvangen feedback</SectionTitle>
+              <button onClick={() => setToonFeedback(v => !v)} style={{ padding: "8px 16px", borderRadius: 6, background: "#3c3f6b", color: "#fff", border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                {toonFeedback ? "Verberg" : "Bekijk ontvangen feedback"}
+              </button>
+            </div>
+            {toonFeedback && alleFeedback.items.filter(it => it.reacties.length > 0).map((item, ii) => (
+              <div key={ii} style={{ marginBottom: 20, paddingBottom: 20, borderBottom: ii < alleFeedback.items.filter(x => x.reacties.length > 0).length - 1 ? "1px solid rgba(92,98,160,0.25)" : "none" }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#2a2d4d", marginBottom: 12 }}>Over: {item.functieTitel}</div>
+                {item.reacties.map((r, ri) => (
+                  <div key={ri} style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "#3c3f6b", marginBottom: 10 }}>
+                      Feedback van {r.naam_feedbackgever}
+                      <span style={{ fontWeight: 400, color: "#6a6d8f" }}> · {new Date(r.aangemaakt_op).toLocaleDateString("nl-NL", { day: "numeric", month: "long", year: "numeric" })}</span>
+                    </div>
+                    {item.skillsSnapshot.map((s, si) => {
                       const gevonden = r.reacties.find(x => x.tekst === s.tekst);
-                      return gevonden ? gevonden.score : 3;
-                    });
-                    return (
-                      <div key={ri} style={{ marginBottom: 16 }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: "#3c3f6b", marginBottom: 6 }}>
-                          Feedback van {r.naam_feedbackgever}
-                          <span style={{ fontWeight: 400, color: "#6a6d8f" }}> · {new Date(r.aangemaakt_op).toLocaleDateString("nl-NL", { day: "numeric", month: "long", year: "numeric" })}</span>
+                      const feedbackScore = gevonden ? gevonden.score : 3;
+                      return (
+                        <div key={si} style={{ background: "rgba(255,255,255,0.5)", borderRadius: 8, padding: "10px 14px", marginBottom: 8 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: "#2a2d4d", marginBottom: 6 }}>{s.tekst}</div>
+                          <div style={{ fontSize: 11, color: "#3a3d5c", marginBottom: 3 }}>Jij: <strong>{NIVEAUS[s.eigenNiveau - 1]}</strong></div>
+                          <div style={{ fontSize: 11, color: "#3a3d5c" }}>{r.naam_feedbackgever}: <strong>{NIVEAUS[feedbackScore - 1]}</strong></div>
+                          {gevonden?.toelichting && <div style={{ fontSize: 11, color: "#6a6d8f", marginTop: 6, fontStyle: "italic" }}>"{gevonden.toelichting}"</div>}
                         </div>
-                        {skillsLijst.length >= 3 ? (
-                          <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}>
-                            <RadarDiagram skills={skillsLijst} eigenScores={eigenScores} feedbackScores={feedbackScores} size={240} />
-                          </div>
-                        ) : (
-                          skillsLijst.map((s, si) => (
-                            <div key={si} style={{ fontSize: 12, color: "#3a3d5c", padding: "4px 0" }}>{s}: jij zei {NIVEAUS[eigenScores[si] - 1]}, {r.naam_feedbackgever} zei {NIVEAUS[feedbackScores[si] - 1]}</div>
-                          ))
-                        )}
-                        {r.reacties.filter(x => x.toelichting).map((x, xi) => (
-                          <div key={xi} style={{ fontSize: 12, color: "#3a3d5c", padding: "4px 0" }}><strong>{x.tekst}:</strong> {x.toelichting}</div>
-                        ))}
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            ))}
           </Card>
         )}
 
