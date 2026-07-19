@@ -1218,19 +1218,29 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
     boxShadow: "0 16px 36px rgba(92,98,160,0.4), 0 2px 0 rgba(255,255,255,0.6) inset",
     border: "1px solid #9299d6",
   };
+  const vandaag = new Date().toLocaleDateString("nl-NL", { day: "numeric", month: "long", year: "numeric" });
+  function bewaarAlsPdf() {
+    const oudeTitel = document.title;
+    document.title = `Skillsprofiel${cvData.naam ? ` ${cvData.naam}` : ""} ${vandaag}`;
+    window.print();
+    setTimeout(() => { document.title = oudeTitel; }, 800);
+  }
   return (
     <div style={{ flex: 1, padding: "28px 32px", overflowY: "auto" }}>
       <style>{`
         @media print {
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
           .niet-printen { display: none !important; }
           body { background: #fff; }
           .skillsprofiel-titel { color: #1e2a35 !important; }
-          .skillsprofiel-subtitel { color: #666 !important; }
+          .skillsprofiel-subtitel { color: #555 !important; }
+          .op-donker { color: #1e2a35 !important; }
         }
       `}</style>
       <div style={{ maxWidth: 760, margin: "0 auto" }}>
         <div style={{ textAlign: "center", marginBottom: 22 }}>
           <div className="skillsprofiel-titel" style={{ fontFamily: "Georgia,serif", fontSize: 28, fontWeight: 700, color: "#ffffff" }}>Skillsprofiel{cvData.naam ? ` ${cvData.naam}` : ""}</div>
+          <div className="skillsprofiel-subtitel" style={{ fontSize: 13, color: "#a8b3bd", marginTop: 6 }}>{vandaag}</div>
         </div>
         {/* Jouw verhaal + top 5 — het hoogtepunt */}
         {laden && <LaadScherm titel="Jouw verhaal wordt geschreven…" tekst="We combineren je skills, drijfveren en ontwikkelrichting tot één overzicht." />}
@@ -1254,8 +1264,8 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
                 ))}
               </div>
             )}
-            {cvData.verhaalBronnen && <p style={{ fontSize: 12, color: "#c4cdd4", fontStyle: "italic", marginBottom: 14, textAlign: "center" }}>{cvData.verhaalBronnen}</p>}
-            <div style={{ fontFamily: "Georgia,serif", fontSize: 18, fontWeight: 600, color: "#fff", marginBottom: 12 }}>Jouw verhaal</div>
+            {cvData.verhaalBronnen && <p className="op-donker" style={{ fontSize: 12, color: "#c4cdd4", fontStyle: "italic", marginBottom: 14, textAlign: "center" }}>{cvData.verhaalBronnen}</p>}
+            <div className="op-donker" style={{ fontFamily: "Georgia,serif", fontSize: 18, fontWeight: 600, color: "#fff", marginBottom: 12 }}>Jouw verhaal</div>
             <Card style={{ ...kaartStijl, marginBottom: 24 }}>
               {[cvData.verhaal?.alinea1, cvData.verhaal?.alinea2, cvData.verhaal?.alinea3].filter(Boolean).map((p, i, arr) => (
                 <p key={i} style={{ fontSize: 15, color: "#333", lineHeight: 1.85, marginBottom: i < arr.length - 1 ? 18 : 0 }}>{p}</p>
@@ -1359,9 +1369,10 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
           </button>
         </div>
         <div className="niet-printen" style={{ display: "flex", justifyContent: "center", gap: 18, alignItems: "center", marginTop: 10, paddingTop: 18, borderTop: "1px solid rgba(244,241,232,0.12)" }}>
-          <button onClick={() => window.print()} style={{ background: "none", border: "none", color: "#8a94a0", fontSize: 12, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }}>🖨️ Print / bewaar als PDF</button>
+          <button onClick={bewaarAlsPdf} style={{ background: "none", border: "none", color: "#8a94a0", fontSize: 12, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }}>🖨️ Opslaan als PDF</button>
           <button onClick={nieuwCv} style={{ background: "none", border: "none", color: "#8a94a0", fontSize: 12, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }}>↩ Begin opnieuw met een ander CV</button>
         </div>
+        <p className="niet-printen" style={{ fontSize: 11, color: "#8a94a0", textAlign: "center", marginTop: 8, lineHeight: 1.6 }}>Tip: zet in het printvenster het vinkje "Kop en voetteksten" uit, dan verdwijnt het regeltje met de link en de tijd.</p>
         {saveStatus && (
           <div className="niet-printen" style={{ fontSize: 11, color: saveStatus === "opgeslagen" ? "#5a9c76" : saveStatus === "fout" ? "#c07a7a" : "#8a94a0", textAlign: "center", marginTop: 8 }}>
             {saveStatus === "opslaan..." && "Bezig met opslaan…"}
