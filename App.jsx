@@ -196,62 +196,8 @@ const ROUTE_UITLEG = [
   { titel: "Roadmap", tekst: "Krijg concrete vervolgstappen" },
 ];
 
-function SkillsModel({ size = 220 }) {
-  const kleur = "#8a90c9"; // lavendelblauw
-  const kleurDonker = "#5c62a0";
-  const kleurLicht = "#b3b7e0";
-  const kwadranten = [
-    { rot: 0, boven: "weten", onder: "kennis" },
-    { rot: 90, boven: "kunnen", onder: "vaardigheden" },
-    { rot: 180, boven: "zijn", onder: "persoonskenmerken" },
-    { rot: 270, boven: "willen", onder: "motivatie" },
-  ];
-  return (
-    <svg width={size} height={size} viewBox="0 0 220 220">
-      <defs>
-        <radialGradient id="skillsBol" cx="35%" cy="30%" r="75%">
-          <stop offset="0%" stopColor={kleurLicht} />
-          <stop offset="55%" stopColor={kleur} />
-          <stop offset="100%" stopColor={kleurDonker} />
-        </radialGradient>
-        <radialGradient id="skillsKern" cx="35%" cy="30%" r="75%">
-          <stop offset="0%" stopColor="#fff" />
-          <stop offset="100%" stopColor="#eef4fb" />
-        </radialGradient>
-        <filter id="skillsSchaduw" x="-30%" y="-30%" width="160%" height="160%">
-          <feDropShadow dx="0" dy="3" stdDeviation="4" floodColor="#000" floodOpacity="0.35" />
-        </filter>
-      </defs>
-
-      <g filter="url(#skillsSchaduw)">
-        <circle cx="110" cy="110" r="95" fill="url(#skillsBol)" stroke={kleurDonker} strokeWidth="1" />
-        <path d="M110 15 L110 205 M15 110 L205 110" stroke={kleurDonker} strokeWidth="2" opacity="0.5" />
-        <circle cx="110" cy="110" r="34" fill="url(#skillsKern)" stroke={kleurDonker} strokeWidth="1" />
-      </g>
-
-      <text x="110" y="115" textAnchor="middle" fontFamily="Georgia,serif" fontWeight="700" fontSize="19" fill={kleurDonker}>skills</text>
-
-      {/* Gebogen labels rondom */}
-      <path id="boogLinksBoven" d="M 30 110 A 80 80 0 0 1 110 30" fill="none" />
-      <path id="boogRechtsBoven" d="M 110 30 A 80 80 0 0 1 190 110" fill="none" />
-      <path id="boogRechtsOnder" d="M 190 110 A 80 80 0 0 1 110 190" fill="none" />
-      <path id="boogLinksOnder" d="M 110 190 A 80 80 0 0 1 30 110" fill="none" />
-
-      <text fontFamily="Georgia,serif" fontWeight="700" fontSize="18" fill={kleurDonker}>
-        <textPath href="#boogLinksBoven" startOffset="50%" textAnchor="middle">weten</textPath>
-      </text>
-      <text fontFamily="Georgia,serif" fontWeight="700" fontSize="18" fill={kleurDonker}>
-        <textPath href="#boogRechtsBoven" startOffset="50%" textAnchor="middle">kunnen</textPath>
-      </text>
-      <text fontFamily="Georgia,serif" fontWeight="700" fontSize="18" fill={kleurDonker}>
-        <textPath href="#boogRechtsOnder" startOffset="50%" textAnchor="middle">willen</textPath>
-      </text>
-      <text fontFamily="Georgia,serif" fontWeight="700" fontSize="18" fill={kleurDonker}>
-        <textPath href="#boogLinksOnder" startOffset="50%" textAnchor="middle">zijn</textPath>
-      </text>
-
-    </svg>
-  );
+function SkillsModel() {
+  return <img src="/skills-model.jpg" alt="Weten Kunnen Zijn Willen skills model" style={{ width: "100%", maxWidth: 220, display: "block", margin: "0 auto", borderRadius: 8 }} />;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -823,7 +769,7 @@ export default function App() {
     const gesorteerd = Object.entries(scores).sort((a, b) => b[1] - a[1]);
     const top3 = gesorteerd.slice(0, 3).map(([k]) => `${DRIJFVEER_TYPES[k].label}`).join(", ");
     try {
-      const text = await callClaude([{ role: "user", content: drijfverenPrompt(scores, top3) }], 1500);
+      const text = await callClaude([{ role: "user", content: drijfverenPrompt(scores, top3) }], 2000);
       setDrijfResultaat({ scores, gesorteerd, interpretatie: parseJSON(text) });
     } catch (e) {
       console.error(e);
@@ -1309,6 +1255,7 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
               </div>
             )}
             {cvData.verhaalBronnen && <p style={{ fontSize: 12, color: "#c4cdd4", fontStyle: "italic", marginBottom: 14, textAlign: "center" }}>{cvData.verhaalBronnen}</p>}
+            <div style={{ fontFamily: "Georgia,serif", fontSize: 18, fontWeight: 600, color: "#fff", marginBottom: 12 }}>Jouw verhaal</div>
             <Card style={{ marginBottom: 24 }}>
               {[cvData.verhaal?.alinea1, cvData.verhaal?.alinea2, cvData.verhaal?.alinea3].filter(Boolean).map((p, i, arr) => (
                 <p key={i} style={{ fontSize: 15, color: "#333", lineHeight: 1.85, marginBottom: i < arr.length - 1 ? 18 : 0 }}>{p}</p>
@@ -1319,8 +1266,8 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
 
         {/* Weten · Kunnen · Zijn · Willen */}
         <Card style={{ marginBottom: 16 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 24, alignItems: "start" }}>
-            <SkillsModel size={210} />
+          <div style={{ display: "grid", gridTemplateColumns: "160px 1fr", gap: 20, alignItems: "start" }}>
+            <SkillsModel />
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
               {[
                 { key: "weten", label: "Weten", sub: "Kennis" },
