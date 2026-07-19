@@ -104,12 +104,12 @@ async function slaEscoMatchOp(skillId, escoMatch) {
 
 // ─── Drijfveren types ────────────────────────────────────────────────────────
 const DRIJFVEER_TYPES = {
-  R: { label: "De Maker", kleur: "#c17a3a", omschrijving: "Jij houdt van praktisch werken en dingen voor elkaar krijgen. Je werkt graag met je handen of in de buitenlucht en ziet resultaat van je werk." },
-  I: { label: "De Denker", kleur: "#2f6690", omschrijving: "Jij wordt gedreven door kennis en inzicht. Je analyseert graag, stelt vragen en wil begrijpen hoe dingen werken." },
-  A: { label: "De Creator", kleur: "#7a5aa0", omschrijving: "Jij haalt energie uit creëren en vernieuwen. Je denkt buiten de kaders en wil iets neerzetten dat uniek en origineel is." },
-  S: { label: "De Helper", kleur: "#4a8a5c", omschrijving: "Jij doet het voor de mensen. Je begeleidt, ondersteunt en verbindt, en dat geeft jou energie." },
-  E: { label: "De Leider", kleur: "#b5482f", omschrijving: "Jij wil impact maken. Je overtuigt, neemt initiatief en stuurt aan op resultaat en groei." },
-  C: { label: "De Organisator", kleur: "#1f7a6c", omschrijving: "Jij houdt van structuur en overzicht. Je werkt nauwkeurig, betrouwbaar en zorgt dat alles goed geregeld is." },
+  R: { label: "De Maker", emoji: "🔧", kleur: "#c17a3a", omschrijving: "Jij houdt van praktisch werken en dingen voor elkaar krijgen. Je werkt graag met je handen of in de buitenlucht en ziet resultaat van je werk." },
+  I: { label: "De Denker", emoji: "🔬", kleur: "#2f6690", omschrijving: "Jij wordt gedreven door kennis en inzicht. Je analyseert graag, stelt vragen en wil begrijpen hoe dingen werken." },
+  A: { label: "De Creator", emoji: "🎨", kleur: "#7a5aa0", omschrijving: "Jij haalt energie uit creëren en vernieuwen. Je denkt buiten de kaders en wil iets neerzetten dat uniek en origineel is." },
+  S: { label: "De Helper", emoji: "🤝", kleur: "#4a8a5c", omschrijving: "Jij doet het voor de mensen. Je begeleidt, ondersteunt en verbindt, en dat geeft jou energie." },
+  E: { label: "De Leider", emoji: "🚀", kleur: "#b5482f", omschrijving: "Jij wil impact maken. Je overtuigt, neemt initiatief en stuurt aan op resultaat en groei." },
+  C: { label: "De Organisator", emoji: "📋", kleur: "#1f7a6c", omschrijving: "Jij houdt van structuur en overzicht. Je werkt nauwkeurig, betrouwbaar en zorgt dat alles goed geregeld is." },
 };
 
 // ─── Eigen lijntekening-icoontjes per drijfveer-type (i.p.v. emoji) ────────────
@@ -197,9 +197,9 @@ const ROUTE_UITLEG = [
 ];
 
 function SkillsModel({ size = 220 }) {
-  const kleur = "#2a8fa0"; // representatieve Bright-kleur (teal/blauw)
-  const kleurDonker = "#1c6474";
-  const kleurLicht = "#4bb3c4";
+  const kleur = "#8a90c9"; // lavendelblauw
+  const kleurDonker = "#5c62a0";
+  const kleurLicht = "#b3b7e0";
   const kwadranten = [
     { rot: 0, boven: "weten", onder: "kennis" },
     { rot: 90, boven: "kunnen", onder: "vaardigheden" },
@@ -994,6 +994,9 @@ export default function App() {
             {drijfStap === 0 && !drijfResultaat && (
               <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 32 }}>
                 <div style={{ background: "#fff", borderRadius: 10, border: `1px solid ${KLEUR.lijn}`, padding: "40px 36px", maxWidth: 440, width: "100%", textAlign: "center" }}>
+                  <div style={{ display: "flex", justifyContent: "center", gap: 10, marginBottom: 18, fontSize: 28 }}>
+                    {Object.values(DRIJFVEER_TYPES).map((t, i) => <span key={i}>{t.emoji}</span>)}
+                  </div>
                   <div style={{ fontFamily: "Georgia,serif", fontSize: 22, fontWeight: 600, color: KLEUR.inkt, marginBottom: 12 }}>Wat drijft jou?</div>
                   <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7, marginBottom: 6 }}>5 korte vragen over wat je energie geeft op je werk. Geen goed of fout antwoord, kies gewoon wat het meest bij jou past.</p>
                   <p style={{ fontSize: 12, color: "#999", marginBottom: 24 }}>Duurt nog geen 2 minuten.</p>
@@ -1011,7 +1014,7 @@ export default function App() {
                   <Card style={{ padding: "32px 28px" }}>
                     <div style={{ fontFamily: "Georgia,serif", fontSize: 20, fontWeight: 600, color: KLEUR.inkt, marginBottom: 24, lineHeight: 1.4 }}>{huidigVraag.vraag}</div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                      {huidigVraag.opties.map((opt, i) => { const type = DRIJFVEER_TYPES[opt.type]; const gekozen = antwoorden[drijfStap] === opt.type; return (<button key={i} onClick={() => kiesAntwoord(opt.type)} style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 18px", borderRadius: 8, border: gekozen ? `2px solid ${type.kleur}` : `2px solid ${KLEUR.lijn}`, background: gekozen ? type.kleur + "18" : KLEUR.papier, cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}><span style={{ flexShrink: 0, width: 30, height: 30, borderRadius: 6, background: type.kleur + "18", display: "flex", alignItems: "center", justifyContent: "center" }}><DrijfveerIcon type={opt.type} kleur={type.kleur} size={20} /></span><span style={{ fontSize: 14, color: "#333", lineHeight: 1.5 }}>{opt.tekst}</span></button>); })}
+                      {huidigVraag.opties.map((opt, i) => { const type = DRIJFVEER_TYPES[opt.type]; const gekozen = antwoorden[drijfStap] === opt.type; return (<button key={i} onClick={() => kiesAntwoord(opt.type)} style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 18px", borderRadius: 8, border: gekozen ? `2px solid ${type.kleur}` : `2px solid ${KLEUR.lijn}`, background: gekozen ? type.kleur + "18" : KLEUR.papier, cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}><span style={{ fontSize: 22, flexShrink: 0 }}>{type.emoji}</span><span style={{ fontSize: 14, color: "#333", lineHeight: 1.5 }}>{opt.tekst}</span></button>); })}
                     </div>
                   </Card>
                 </div>
@@ -1027,7 +1030,7 @@ export default function App() {
                     <div style={{ background: KLEUR.inkt, borderRadius: 10, padding: "24px 28px", marginBottom: 20 }}>
                       <div style={{ fontSize: 12, color: "#a8b3bd", marginBottom: 10, letterSpacing: "0.8px", textTransform: "uppercase" }}>Jouw belangrijkste drijfveren</div>
                       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                        {top3.map(([k], i) => { const t = DRIJFVEER_TYPES[k]; return (<div key={k} style={{ display: "flex", alignItems: "center", gap: 10, background: t.kleur + "25", border: `1px solid ${t.kleur}55`, borderRadius: 8, padding: "10px 16px" }}><DrijfveerIcon type={k} kleur={t.kleur} size={24} /><div><div style={{ fontSize: 11, color: "#a8b3bd", fontWeight: 500 }}>#{i + 1}</div><div style={{ fontSize: 15, fontWeight: 700, color: t.kleur }}>{t.label}</div></div></div>); })}
+                        {top3.map(([k], i) => { const t = DRIJFVEER_TYPES[k]; return (<div key={k} style={{ display: "flex", alignItems: "center", gap: 10, background: t.kleur + "25", border: `1px solid ${t.kleur}55`, borderRadius: 8, padding: "10px 16px" }}><span style={{ fontSize: 24 }}>{t.emoji}</span><div><div style={{ fontSize: 11, color: "#a8b3bd", fontWeight: 500 }}>#{i + 1}</div><div style={{ fontSize: 15, fontWeight: 700, color: t.kleur }}>{t.label}</div></div></div>); })}
                       </div>
                     </div>
                     {interpretatie && (
@@ -1235,7 +1238,7 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               {drijfTop3.map(([k], i) => { const t = DRIJFVEER_TYPES[k]; return (
                 <div key={k} style={{ display: "flex", alignItems: "center", gap: 8, background: t.kleur + "15", border: `1px solid ${t.kleur}40`, borderRadius: 8, padding: "8px 14px" }}>
-                  <DrijfveerIcon type={k} kleur={t.kleur} size={18} />
+                  <span style={{ fontSize: 18 }}>{t.emoji}</span>
                   <span style={{ fontSize: 13, fontWeight: 600, color: t.kleur }}>{t.label}</span>
                 </div>
               ); })}
