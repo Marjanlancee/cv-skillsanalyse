@@ -365,8 +365,8 @@ function LoginScherm({ onIngelogd }) {
 // ─── Routekaart: metro-lijn stijl overzicht van de hele reis ──────────────────
 function RouteKaart() {
   return (
-    <div style={{ maxWidth: 420, margin: "36px auto 0", textAlign: "left" }}>
-      <div style={{ fontSize: 11, color: "#8a94a0", letterSpacing: "1px", textTransform: "uppercase", marginBottom: 14, textAlign: "center" }}>Dit is de reis die je gaat maken</div>
+    <div style={{ maxWidth: 320, width: "100%", textAlign: "left" }}>
+      <div style={{ fontSize: 11, color: "#8a94a0", letterSpacing: "0.5px", marginBottom: 14 }}>Dit is de reis die je gaat maken</div>
       {ROUTE_UITLEG.map((s, i) => (
         <div key={i} style={{ display: "flex", gap: 14 }}>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
@@ -758,31 +758,33 @@ export default function App() {
       <style>{sterrenCSS}</style>
       <Kop sessie={sessie} onUitloggen={() => supabase.auth.signOut()} />
       <Stappenbalk huidigeStap={stap} hoogsteBezochte={hoogsteBezochte} voltooidValideren={voltooidValideren} gaNaar={gaNaarStap} />
-      <div className="niet-printen" style={{ position: "fixed", bottom: 12, right: 18, display: "flex", alignItems: "center", gap: 8, zIndex: 50 }}>
+      <div className="niet-printen" style={{ position: "fixed", bottom: 14, right: 18, display: "flex", alignItems: "center", gap: 8, zIndex: 50 }}>
         <span style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>Powered by</span>
-        <img src="/logo-bright-dark.png" alt="Bright Work Solutions" style={{ height: 26, opacity: 0.9 }} />
+        <a href="https://www.brightworksolutions.nl" target="_blank" rel="noopener noreferrer" style={{ background: "rgba(255,255,255,0.92)", borderRadius: 6, padding: "5px 10px", display: "flex", alignItems: "center", boxShadow: "0 2px 10px rgba(0,0,0,0.25)" }}>
+          <img src="/logo-bright-dark.png" alt="Bright Work Solutions" style={{ height: 30, display: "block" }} />
+        </a>
       </div>
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
 
         {/* ── STAP: upload ── */}
         {stap === "upload" && !laden && (
-          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "32px 24px" }}>
-            <div style={{ maxWidth: 460, width: "100%", textAlign: "center" }}>
-              <div style={{ fontFamily: "Georgia,serif", fontSize: 30, fontWeight: 700, color: "#fff", marginBottom: 14 }}>Jouw skillsprofiel</div>
-              <p style={{ fontSize: 12, color: "#c4cdd4", lineHeight: 1.65, marginBottom: 28, maxWidth: 400, marginLeft: "auto", marginRight: "auto", fontStyle: "italic" }}>
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "32px 24px", gap: 56, flexWrap: "wrap" }}>
+            <RouteKaart />
+            <div style={{ maxWidth: 380, width: "100%", textAlign: "center" }}>
+              <div style={{ fontFamily: "Georgia,serif", fontSize: 26, fontWeight: 700, color: "#fff", marginBottom: 12 }}>Jouw skillsprofiel</div>
+              <p style={{ fontSize: 12, color: "#c4cdd4", lineHeight: 1.6, marginBottom: 22, fontStyle: "italic" }}>
                 Je leert je hele leven bij: op school, maar net zo goed thuis en op je werk. Een diploma is waardevol, maar vertelt maar een deel van het verhaal. Op de werkvloer heb je vaak veel meer geleerd dan je zelf beseft, en dat brengen we hier in kaart.
               </p>
               <div onClick={() => fileInputRef.current.click()} onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={e => { e.preventDefault(); setDragging(false); handleFile(e.dataTransfer.files[0]); }}
-                style={{ background: dragging ? "#eef4fb" : "linear-gradient(180deg,#f4f8fc,#e9f0f8)", borderRadius: 10, border: `2px dashed ${dragging ? KLEUR.messing : "#9fb4c9"}`, padding: "44px 36px", textAlign: "center", cursor: "pointer", boxShadow: "0 12px 34px rgba(15,25,35,0.35)" }}>
-                <div style={{ fontSize: 40 }}>📋</div>
-                <div style={{ fontFamily: "Georgia,serif", fontSize: 20, color: KLEUR.inkt, margin: "12px 0 6px" }}>Upload je CV</div>
-                <p style={{ fontSize: 14, color: "#555", lineHeight: 1.6, marginBottom: 8 }}>Wij lezen je CV en zoeken uit wat je allemaal kan, jij hoeft niks over te typen.</p>
-                <div style={{ fontSize: 13, color: "#888", lineHeight: 1.6, marginBottom: 20 }}>Sleep een PDF of Word-bestand hierheen, of klik om te bladeren.</div>
+                style={{ background: dragging ? "#eef4fb" : "linear-gradient(180deg,#f4f8fc,#e9f0f8)", borderRadius: 10, border: `2px dashed ${dragging ? KLEUR.messing : "#9fb4c9"}`, padding: "30px 26px", textAlign: "center", cursor: "pointer", boxShadow: "0 12px 34px rgba(15,25,35,0.35)" }}>
+                <div style={{ fontSize: 30 }}>📋</div>
+                <div style={{ fontFamily: "Georgia,serif", fontSize: 17, color: KLEUR.inkt, margin: "8px 0 5px" }}>Upload je CV</div>
+                <p style={{ fontSize: 13, color: "#555", lineHeight: 1.5, marginBottom: 6 }}>Wij lezen je CV en zoeken uit wat je allemaal kan, jij hoeft niks over te typen.</p>
+                <div style={{ fontSize: 12, color: "#888", lineHeight: 1.5, marginBottom: 14 }}>Sleep een PDF of Word-bestand hierheen, of klik om te bladeren.</div>
                 <input type="file" ref={fileInputRef} accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style={{ display: "none" }} onChange={e => handleFile(e.target.files[0])} />
-                <button style={{ padding: "12px 28px", borderRadius: 6, background: KLEUR.inkt, color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>📁 Kies PDF of Word-bestand</button>
+                <button style={{ padding: "10px 22px", borderRadius: 6, background: KLEUR.inkt, color: "#fff", border: "none", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>📁 Kies PDF of Word-bestand</button>
               </div>
-              <RouteKaart />
             </div>
           </div>
         )}
