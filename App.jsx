@@ -163,7 +163,13 @@ const STAPPEN = [
   { id: "drijfveren", label: "Drijfveren" },
   { id: "ontwikkelen", label: "Ontwikkelen" },
   { id: "profiel", label: "Profiel" },
+  { id: "vergelijken", label: "Vergelijk" },
+  { id: "roadmap", label: "Roadmap" },
 ];
+
+function SkillsModel() {
+  return <img src="/skills-model.jpg" alt="Weten Kunnen Zijn Willen skills model" style={{ width: "100%", maxWidth: 220, display: "block", margin: "0 auto", borderRadius: 8 }} />;
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function Spinner() {
@@ -244,7 +250,7 @@ function BeoordelingRij({ tekst, waarde, onChange }) {
 function Stappenbalk({ huidigeStap, hoogsteBezochte, voltooidValideren, gaNaar }) {
   const huidigIdx = STAPPEN.findIndex(s => s.id === huidigeStap);
   return (
-    <div style={{ background: "#fff", borderBottom: `1px solid ${KLEUR.lijn}`, padding: "14px 32px", display: "flex", alignItems: "center", gap: 4, overflowX: "auto" }}>
+    <div className="niet-printen" style={{ background: "#fff", borderBottom: `1px solid ${KLEUR.lijn}`, padding: "14px 32px", display: "flex", alignItems: "center", gap: 4, overflowX: "auto" }}>
       {STAPPEN.map((s, i) => {
         const bereikbaar = i === 0 || i <= hoogsteBezochte || (i >= 4 && voltooidValideren);
         const actief = s.id === huidigeStap;
@@ -369,6 +375,15 @@ export default function App() {
   const [beoordelingen, setBeoordelingen] = useState({});
 
   const [copied, setCopied] = useState(false);
+
+  // Vergelijken + Roadmap state
+  const [functiesLijst, setFunctiesLijst] = useState([]);
+  const [functiesLaden, setFunctiesLaden] = useState(false);
+  const [gekozenVergelijkFunctie, setGekozenVergelijkFunctie] = useState(null);
+  const [gapResultaat, setGapResultaat] = useState(null);
+  const [gapLaden, setGapLaden] = useState(false);
+  const [roadmapOpgeslagen, setRoadmapOpgeslagen] = useState(false);
+  const [roadmapLaden, setRoadmapLaden] = useState(false);
 
   // Drijfveren state
   const [drijfStap, setDrijfStap] = useState(0);
@@ -529,6 +544,66 @@ export default function App() {
     navigator.clipboard.writeText(txt).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2200); });
   }
 
+  async function laadFuncties() {
+    setFunctiesLaden(true);
+    const { data } = await supabase.from("functies").select("id, titel, werkgevers(naam)").order("titel");
+    setFunctiesLijst(data || []);
+    setFunctiesLaden(false);
+  }
+
+  async function berekenGap(functieId) {
+    setGapLaden(true);
+    setGapResultaat(null);
+    setRoadmapOpgeslagen(false);
+    try {
+      const { data: medewerker } = await supabase.from("medewerkers").select("id").eq("auth_user_id", sessie.user.id).maybeSingle();
+      const { data: eigenRijen } = await supabase.from("medewerker_skills").select("skills(bron_label, skill_matches(esco_anker_code))").eq("medewerker_id", medewerker.id);
+      const { data: functieRijen } = await supabase.from("functie_skills").select("verplicht, skills(id, bron_label, skill_matches(esco_anker_code))").eq("functie_id", functieId);
+
+      const eigenSet = new Set();
+      (eigenRijen || []).forEach(r => {
+        const codes = (r.skills?.skill_matches || []).map(m => m.esco_anker_code).filter(Boolean);
+        if (codes.length) codes.forEach(c => eigenSet.add(c));
+        else if (r.skills?.bron_label) eigenSet.add("label:" + r.skills.bron_label.toLowerCase());
+      });
+
+      const matched = [], missing = [];
+      (functieRijen || []).forEach(r => {
+        const label = r.skills?.bron_label;
+        const codes = (r.skills?.skill_matches || []).map(m => m.esco_anker_code).filter(Boolean);
+        const sleutels = codes.length ? codes : ["label:" + (label || "").toLowerCase()];
+        const heeftMatch = sleutels.some(s => eigenSet.has(s));
+        (heeftMatch ? matched : missing).push({ label, verplicht: r.verplicht, skillId: r.skills?.id });
+      });
+
+      setGapResultaat({ matched, missing });
+    } catch (e) { console.error(e); }
+    setGapLaden(false);
+  }
+
+  async function maakRoadmap() {
+    setRoadmapLaden(true);
+    try {
+      const { data: medewerker } = await supabase.from("medewerkers").select("id").eq("auth_user_id", sessie.user.id).maybeSingle();
+      const functieTitel = functiesLijst.find(f => f.id === gekozenVergelijkFunctie)?.titel || "nieuwe functie";
+      const { data: roadmap, error } = await supabase.from("roadmaps").insert({
+        medewerker_id: medewerker.id,
+        functie_id: gekozenVergelijkFunctie,
+        titel: `Route naar ${functieTitel}`,
+      }).select("id").single();
+      if (error) throw error;
+
+      const stappen = gapResultaat.missing.filter(s => s.skillId).map((s, i) => ({
+        roadmap_id: roadmap.id,
+        skill_id: s.skillId,
+        volgorde: i + 1,
+      }));
+      if (stappen.length) await supabase.from("roadmap_stappen").insert(stappen);
+      setRoadmapOpgeslagen(true);
+    } catch (e) { console.error(e); }
+    setRoadmapLaden(false);
+  }
+
   function nieuwCv() {
     setStap("upload"); setLaden(null); setHoogsteBezochte(0);
     setCvData(null); setSaveStatus(null);
@@ -617,8 +692,11 @@ export default function App() {
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "32px 24px" }}>
             <div style={{ maxWidth: 460, width: "100%", textAlign: "center" }}>
               <div style={{ fontFamily: "Georgia,serif", fontSize: 30, fontWeight: 700, color: KLEUR.inkt, marginBottom: 10 }}>Jouw skillsprofiel</div>
-              <p style={{ fontSize: 14, color: "#666", lineHeight: 1.7, marginBottom: 28, maxWidth: 380, marginLeft: "auto", marginRight: "auto" }}>
+              <p style={{ fontSize: 14, color: "#666", lineHeight: 1.7, marginBottom: 20, maxWidth: 380, marginLeft: "auto", marginRight: "auto" }}>
                 Upload je CV. Wij lezen 'm en zoeken uit wat je allemaal kan, jij hoeft niks over te typen.
+              </p>
+              <p style={{ fontSize: 12, color: "#888", lineHeight: 1.65, marginBottom: 28, maxWidth: 400, marginLeft: "auto", marginRight: "auto", fontStyle: "italic" }}>
+                Je leert je hele leven skills: op school, maar net zo goed thuis en op je werk. Een diploma is waardevol, maar vertelt maar een deel van het verhaal. Heb je "alleen maar" een praktijkopleiding gedaan? De kans is groot dat je op de werkvloer veel meer hebt geleerd dan je zelf beseft.
               </p>
               <div onClick={() => fileInputRef.current.click()} onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={e => { e.preventDefault(); setDragging(false); handleFile(e.dataTransfer.files[0]); }}
                 style={{ background: dragging ? "#fffef5" : "linear-gradient(180deg,#fff,#fffdf5)", borderRadius: 10, border: `2px dashed ${dragging ? KLEUR.messing : "#e3d9a8"}`, padding: "44px 36px", textAlign: "center", cursor: "pointer", boxShadow: "0 8px 30px rgba(184,134,63,0.12)" }}>
@@ -739,11 +817,8 @@ export default function App() {
                 );
               })}
               <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 8 }}>
-                <button onClick={() => gaNaarStap("drijfveren")} style={{ padding: "13px 28px", borderRadius: 6, background: KLEUR.inkt, color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                <button onClick={async () => { await handOpslaan(); gaNaarStap("drijfveren"); }} style={{ padding: "13px 28px", borderRadius: 6, background: KLEUR.inkt, color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
                   Volgende stap →
-                </button>
-                <button onClick={handOpslaan} style={{ padding: "13px 22px", borderRadius: 6, background: "#fff", color: KLEUR.inkt, border: `1px solid ${KLEUR.lijn}`, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-                  💾 Sla op
                 </button>
                 {saveStatus && (
                   <span style={{ fontSize: 12, color: saveStatus === "opgeslagen" ? "#166534" : saveStatus === "fout" ? "#991b1b" : "#888" }}>
@@ -820,7 +895,7 @@ export default function App() {
           <div style={{ flex: 1, overflowY: "auto", padding: "32px" }}>
             <div style={{ maxWidth: 680, margin: "0 auto" }}>
               <div style={{ fontFamily: "Georgia,serif", fontSize: 22, fontWeight: 600, color: KLEUR.inkt, marginBottom: 8 }}>Waar wil jij naartoe groeien?</div>
-              <p style={{ fontSize: 13, color: "#666", lineHeight: 1.6, marginBottom: 16 }}>Wil je nog iets leren, of een andere kant op? Typ het hier. Wij denken met je mee.</p>
+              <p style={{ fontSize: 13, color: "#666", lineHeight: 1.6, marginBottom: 16 }}>Wil je nog iets leren, of een andere kant op? Typ het hier, ook een paar woorden is genoeg: wij vullen aan en maken er een concreet advies van.</p>
               <Card style={{ marginBottom: 20 }}>
                 <textarea value={ontwikkelDoel} onChange={e => setOntwikkelDoel(e.target.value)} placeholder="Bijv: Ik wil doorgroeien naar een leidinggevende rol, maar merk dat ik moeite heb om mensen aan te sturen…" style={{ width: "100%", minHeight: 110, padding: "14px 16px", borderRadius: 6, border: "1px solid #d0cfc8", fontSize: 14, fontFamily: "inherit", lineHeight: 1.6, color: "#333", background: KLEUR.papier, resize: "vertical", outline: "none", boxSizing: "border-box" }} />
                 <div style={{ marginTop: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -863,6 +938,21 @@ export default function App() {
             nieuwCv={nieuwCv} gaNaarStap={gaNaarStap}
           />
         )}
+
+        {/* ── STAP: vergelijken met een functie ── */}
+        {stap === "vergelijken" && (
+          <VergelijkStap
+            functiesLijst={functiesLijst} functiesLaden={functiesLaden} laadFuncties={laadFuncties}
+            gekozenVergelijkFunctie={gekozenVergelijkFunctie} setGekozenVergelijkFunctie={setGekozenVergelijkFunctie}
+            berekenGap={berekenGap} gapResultaat={gapResultaat} gapLaden={gapLaden} gaNaarStap={gaNaarStap}
+          />
+        )}
+
+        {/* ── STAP: roadmap ── */}
+        {stap === "roadmap" && (
+          <RoadmapStap gapResultaat={gapResultaat} maakRoadmap={maakRoadmap} roadmapLaden={roadmapLaden} roadmapOpgeslagen={roadmapOpgeslagen}
+            functieTitel={functiesLijst.find(f => f.id === gekozenVergelijkFunctie)?.titel} gaNaarStap={gaNaarStap} />
+        )}
       </div>
     </div>
   );
@@ -871,7 +961,7 @@ export default function App() {
 // ─── Kop (header) ───────────────────────────────────────────────────────────
 function Kop({ sessie, onUitloggen }) {
   return (
-    <div style={{ background: KLEUR.inkt, padding: "18px 32px", display: "flex", alignItems: "center", gap: 14 }}>
+    <div className="niet-printen" style={{ background: KLEUR.inkt, padding: "18px 32px", display: "flex", alignItems: "center", gap: 14 }}>
       <div>
         <div style={{ fontFamily: "Georgia,serif", fontSize: 19, fontWeight: 700, color: "#fff" }}>CV Skillsanalyse</div>
         <div style={{ fontSize: 12, color: "#a8b3bd", marginTop: 1 }}>Weten · Kunnen · Zijn · Willen in kaart brengen</div>
@@ -914,20 +1004,26 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
 
   return (
     <div style={{ flex: 1, padding: "28px 32px", overflowY: "auto" }}>
+      <style>{`
+        @media print {
+          .niet-printen { display: none !important; }
+          body { background: #fff; }
+        }
+      `}</style>
       <div style={{ maxWidth: 760, margin: "0 auto" }}>
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 6 }}>
           <div>
-            <div style={{ fontFamily: "Georgia,serif", fontSize: 24, fontWeight: 700, color: KLEUR.inkt }}>Dit is wat we over jou gevonden hebben</div>
+            <div style={{ fontFamily: "Georgia,serif", fontSize: 24, fontWeight: 700, color: KLEUR.inkt }}>Dit is jouw skillsprofiel</div>
             <p style={{ fontSize: 13, color: "#666", marginTop: 6, maxWidth: 480, lineHeight: 1.6 }}>Waar je goed in bent, wat je erbij hebt geleerd, en wat je nog zou willen leren. Laat dit zien aan je leidinggevende, of bewaar het gewoon voor jezelf.</p>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={handOpslaan} style={{ padding: "10px 18px", borderRadius: 6, background: "#fff", color: KLEUR.inkt, border: `1px solid ${KLEUR.lijn}`, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>💾 Sla op</button>
+          <div className="niet-printen" style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => window.print()} style={{ padding: "10px 18px", borderRadius: 6, background: "#fff", color: KLEUR.inkt, border: `1px solid ${KLEUR.lijn}`, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>🖨️ Print / bewaar als PDF</button>
             <button onClick={nieuwCv} style={{ padding: "10px 18px", borderRadius: 6, background: "#fff", color: "#c0392b", border: `1px solid ${KLEUR.lijn}`, fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>↩ Nieuw CV</button>
           </div>
         </div>
         {saveStatus && (
-          <div style={{ fontSize: 12, color: saveStatus === "opgeslagen" ? "#166534" : saveStatus === "fout" ? "#991b1b" : "#888", marginBottom: 16 }}>
+          <div className="niet-printen" style={{ fontSize: 12, color: saveStatus === "opgeslagen" ? "#166534" : saveStatus === "fout" ? "#991b1b" : "#888", marginBottom: 16 }}>
             {saveStatus === "opslaan..." && "Bezig met opslaan…"}
             {saveStatus === "opgeslagen" && `✓ Opgeslagen (${escoMatchCount} skills gekoppeld)`}
             {saveStatus === "fout" && "Opslaan mislukt"}
@@ -961,34 +1057,57 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
           </>
         )}
 
-        {/* Alle skills, compact */}
-        {hardList.length > 0 && (
-          <Card style={{ marginBottom: 16 }}>
-            <SectionTitle>Hardskills ({hardList.length})</SectionTitle>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {hardList.map(item => (
-                <div key={item.tekst} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <EscoSkillPill item={item} bg="#eef2ff" col="#3730a3" />
-                  <span style={{ fontSize: 10, color: "#999" }}>{NIVEAUS[(beoordelingen[item.tekst] || 3) - 1]}</span>
+        {/* Weten · Kunnen · Zijn · Willen */}
+        <Card style={{ marginBottom: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "160px 1fr", gap: 20, alignItems: "start" }}>
+            <SkillsModel />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              {[
+                { key: "weten", label: "Weten", sub: "Kennis" },
+                { key: "kunnen", label: "Kunnen", sub: "Vaardigheden" },
+                { key: "zijn", label: "Zijn", sub: "Persoonlijkheid" },
+                { key: "willen", label: "Willen", sub: "Motivatie" },
+              ].map(({ key, label, sub }) => (
+                <div key={key}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: KLEUR.inkt }}>{label}</div>
+                  <div style={{ fontSize: 11, color: "#999", marginBottom: 6 }}>{sub}</div>
+                  {(cvData[key] || []).map((item, i) => <div key={i} style={{ fontSize: 12, color: "#444", padding: "4px 0" }}>{item}</div>)}
                 </div>
               ))}
             </div>
-          </Card>
-        )}
-        {softList.length > 0 && (
-          <Card style={{ marginBottom: 16 }}>
-            <SectionTitle>Softskills ({softList.length})</SectionTitle>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {softList.map(item => (
-                <div key={item.tekst} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <EscoSkillPill item={item} bg="#fef3c7" col="#92400e" />
-                  <span style={{ fontSize: 10, color: "#999" }}>{NIVEAUS[(beoordelingen[item.tekst] || 3) - 1]}</span>
-                </div>
-              ))}
-            </div>
-            <p style={{ fontSize: 11, color: "#aaa", marginTop: 12 }}>Niveau aanpassen? Ga terug naar de stap "Valideren".</p>
-          </Card>
-        )}
+          </div>
+        </Card>
+
+        {/* Alle skills, compact, in twee kolommen */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+          {hardList.length > 0 && (
+            <Card>
+              <SectionTitle>Hardskills ({hardList.length})</SectionTitle>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {hardList.map(item => (
+                  <div key={item.tekst} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <EscoSkillPill item={item} bg="#eef2ff" col="#3730a3" />
+                    <span style={{ fontSize: 10, color: "#999" }}>{NIVEAUS[(beoordelingen[item.tekst] || 3) - 1]}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+          {softList.length > 0 && (
+            <Card>
+              <SectionTitle>Softskills ({softList.length})</SectionTitle>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {softList.map(item => (
+                  <div key={item.tekst} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <EscoSkillPill item={item} bg="#fef3c7" col="#92400e" />
+                    <span style={{ fontSize: 10, color: "#999" }}>{NIVEAUS[(beoordelingen[item.tekst] || 3) - 1]}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+        </div>
+        <p style={{ fontSize: 11, color: "#aaa", marginTop: -8, marginBottom: 16 }}>Niveau aanpassen? Ga terug naar de stap "Valideren".</p>
 
         {/* Opleiding & hobby's */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 16 }}>
@@ -1006,9 +1125,116 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
         </div>
 
         {(!drijfResultaat || !ontwikkelAdvies) && (
-          <div style={{ padding: "14px 18px", background: KLEUR.papier, borderRadius: 8, border: `1px dashed ${KLEUR.lijn}`, fontSize: 12, color: "#777", lineHeight: 1.6 }}>
+          <div style={{ padding: "14px 18px", background: KLEUR.papier, borderRadius: 8, border: `1px dashed ${KLEUR.lijn}`, fontSize: 12, color: "#777", lineHeight: 1.6, marginBottom: 16 }}>
             {!drijfResultaat && <div>Je hebt de Drijfveren nog niet ingevuld. <button onClick={() => gaNaarStap("drijfveren")} style={{ background: "none", border: "none", color: KLEUR.messingDonker, fontWeight: 600, cursor: "pointer", textDecoration: "underline", fontFamily: "inherit", padding: 0 }}>Alsnog invullen →</button></div>}
             {!ontwikkelAdvies && <div style={{ marginTop: 6 }}>Je hebt nog geen ontwikkelrichting ingevuld. <button onClick={() => gaNaarStap("ontwikkelen")} style={{ background: "none", border: "none", color: KLEUR.messingDonker, fontWeight: 600, cursor: "pointer", textDecoration: "underline", fontFamily: "inherit", padding: 0 }}>Alsnog invullen →</button></div>}
+          </div>
+        )}
+
+        <div className="niet-printen" style={{ textAlign: "center", padding: "20px 0" }}>
+          <button onClick={() => gaNaarStap("vergelijken")} style={{ padding: "13px 28px", borderRadius: 6, background: KLEUR.inkt, color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+            Vergelijk met een functie →
+          </button>
+          <p style={{ fontSize: 12, color: "#888", marginTop: 10 }}>Zie precies wat je al kan, en wat je nog zou kunnen ontwikkelen voor een andere rol.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Stap: vergelijk je skills met een functie ─────────────────────────────────
+function VergelijkStap({ functiesLijst, functiesLaden, laadFuncties, gekozenVergelijkFunctie, setGekozenVergelijkFunctie, berekenGap, gapResultaat, gapLaden, gaNaarStap }) {
+  useEffect(() => {
+    if (functiesLijst.length === 0 && !functiesLaden) laadFuncties();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div style={{ flex: 1, padding: "28px 32px", overflowY: "auto" }}>
+      <div style={{ maxWidth: 700, margin: "0 auto" }}>
+        <div style={{ fontFamily: "Georgia,serif", fontSize: 22, fontWeight: 600, color: KLEUR.inkt, marginBottom: 8 }}>Vergelijk met een functie</div>
+        <p style={{ fontSize: 13, color: "#666", lineHeight: 1.6, marginBottom: 20 }}>Kies een functie om je skillsprofiel mee te vergelijken. Zo zie je precies wat je al kan, en wat je nog zou kunnen ontwikkelen.</p>
+
+        {functiesLaden && <LaadScherm titel="Functies worden opgehaald…" tekst="" />}
+
+        {!functiesLaden && functiesLijst.length === 0 && (
+          <Card><p style={{ fontSize: 13, color: "#888" }}>Er staan nog geen functieprofielen in het systeem om mee te vergelijken.</p></Card>
+        )}
+
+        {!functiesLaden && functiesLijst.length > 0 && (
+          <>
+            <Card style={{ marginBottom: 20 }}>
+              <select value={gekozenVergelijkFunctie || ""} onChange={e => setGekozenVergelijkFunctie(e.target.value)} style={{ width: "100%", padding: "12px 14px", borderRadius: 6, border: "1px solid #d0cfc8", fontSize: 14, fontFamily: "inherit", marginBottom: 14 }}>
+                <option value="" disabled>Kies een functie…</option>
+                {functiesLijst.map(f => <option key={f.id} value={f.id}>{f.titel}{f.werkgevers?.naam ? ` (${f.werkgevers.naam})` : ""}</option>)}
+              </select>
+              <button onClick={() => berekenGap(gekozenVergelijkFunctie)} disabled={!gekozenVergelijkFunctie || gapLaden} style={{ padding: "12px 26px", borderRadius: 6, background: !gekozenVergelijkFunctie ? "#ccc" : KLEUR.inkt, color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: !gekozenVergelijkFunctie ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
+                {gapLaden ? "Bezig…" : "Vergelijk →"}
+              </button>
+            </Card>
+
+            {gapResultaat && (
+              <>
+                <Card style={{ marginBottom: 16 }}>
+                  <SectionTitle>✓ Skills die je al hebt ({gapResultaat.matched.length})</SectionTitle>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {gapResultaat.matched.map((s, i) => <span key={i} style={{ fontSize: 12, padding: "5px 12px", borderRadius: 6, background: "#f0fdf4", color: "#166534", border: "1px solid #bbf7d0" }}>{s.label}</span>)}
+                  </div>
+                </Card>
+                <Card style={{ marginBottom: 20 }}>
+                  <SectionTitle>Nog te ontwikkelen ({gapResultaat.missing.length})</SectionTitle>
+                  {gapResultaat.missing.length === 0 && <p style={{ fontSize: 13, color: "#888" }}>Niets, je hebt alle skills voor deze functie al!</p>}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {gapResultaat.missing.map((s, i) => <span key={i} style={{ fontSize: 12, padding: "5px 12px", borderRadius: 6, background: "#fffbeb", color: "#92400e", border: "1px solid #fde68a" }}>{s.label}{s.verplicht === false ? " (niet verplicht)" : ""}</span>)}
+                  </div>
+                </Card>
+                {gapResultaat.missing.length > 0 && (
+                  <button onClick={() => gaNaarStap("roadmap")} style={{ padding: "13px 28px", borderRadius: 6, background: KLEUR.inkt, color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                    Maak hier een roadmap van →
+                  </button>
+                )}
+              </>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Stap: roadmap maken op basis van de skillsgap ─────────────────────────────
+function RoadmapStap({ gapResultaat, maakRoadmap, roadmapLaden, roadmapOpgeslagen, functieTitel, gaNaarStap }) {
+  if (!gapResultaat || gapResultaat.missing.length === 0) {
+    return (
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 48, textAlign: "center", gap: 16 }}>
+        <p style={{ fontSize: 14, color: "#888" }}>Vergelijk eerst je skills met een functie om hier een roadmap voor te maken.</p>
+        <button onClick={() => gaNaarStap("vergelijken")} style={{ padding: "12px 26px", borderRadius: 6, background: KLEUR.inkt, color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>← Naar Vergelijken</button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ flex: 1, padding: "28px 32px", overflowY: "auto" }}>
+      <div style={{ maxWidth: 700, margin: "0 auto" }}>
+        <div style={{ fontFamily: "Georgia,serif", fontSize: 22, fontWeight: 600, color: KLEUR.inkt, marginBottom: 8 }}>Jouw roadmap{functieTitel ? ` naar ${functieTitel}` : ""}</div>
+        <p style={{ fontSize: 13, color: "#666", lineHeight: 1.6, marginBottom: 20 }}>Dit zijn de concrete stappen die je kan zetten. Sla ze op om je voortgang bij te houden.</p>
+
+        <Card style={{ marginBottom: 20 }}>
+          {gapResultaat.missing.map((s, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 0", borderBottom: i < gapResultaat.missing.length - 1 ? `1px solid ${KLEUR.lijn}` : "none" }}>
+              <div style={{ width: 26, height: 26, borderRadius: 6, background: KLEUR.inkt, color: KLEUR.messing, fontWeight: 700, fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{i + 1}</div>
+              <div style={{ fontSize: 14, color: "#333" }}>{s.label}</div>
+            </div>
+          ))}
+        </Card>
+
+        {!roadmapOpgeslagen ? (
+          <button onClick={maakRoadmap} disabled={roadmapLaden} style={{ padding: "13px 28px", borderRadius: 6, background: KLEUR.inkt, color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+            {roadmapLaden ? "Bezig…" : "Roadmap opslaan →"}
+          </button>
+        ) : (
+          <div style={{ padding: "14px 18px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, fontSize: 13, color: "#166534" }}>
+            ✓ Je roadmap is opgeslagen. Je kan hier straks je voortgang bijhouden.
           </div>
         )}
       </div>
