@@ -1305,7 +1305,7 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
         {drijfTop3 && (
           <Card style={{ ...kaartStijl, marginBottom: 16 }}>
             <SectionTitle>Jouw drijfveren</SectionTitle>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: drijfResultaat?.interpretatie?.intro ? 16 : 0 }}>
               {drijfTop3.map(([k], i) => { const t = DRIJFVEER_TYPES[k]; return (
                 <div key={k} style={{ display: "flex", alignItems: "center", gap: 8, background: t.kleur + "15", border: `1px solid ${t.kleur}40`, borderRadius: 8, padding: "8px 14px" }}>
                   <span style={{ fontSize: 18 }}>{t.emoji}</span>
@@ -1313,6 +1313,12 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
                 </div>
               ); })}
             </div>
+            {drijfResultaat?.interpretatie?.intro && (
+              <>
+                <p style={{ fontSize: 13, color: "#3a3d5c", lineHeight: 1.7, marginBottom: 10 }}>{drijfResultaat.interpretatie.intro}</p>
+                <p style={{ fontSize: 13, color: "#3a3d5c", lineHeight: 1.7, marginBottom: 0 }}>{drijfResultaat.interpretatie.werkvoorkeur}</p>
+              </>
+            )}
           </Card>
         )}
 
