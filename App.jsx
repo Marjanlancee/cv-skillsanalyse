@@ -1195,6 +1195,29 @@ function LaadScherm({ titel, tekst }) {
     </div>
   );
 }
+// ─── Skillsblok met sortering op niveau en een "toon alles" knop ──────────────
+function SkillsBlok({ titel, lijst, beoordelingen, bg, col, kaartStijl, limiet = 15 }) {
+  const [toonAlles, setToonAlles] = useState(false);
+  const zichtbaar = toonAlles ? lijst : lijst.slice(0, limiet);
+  return (
+    <Card style={kaartStijl}>
+      <SectionTitle>{titel} ({lijst.length})</SectionTitle>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        {zichtbaar.map(item => (
+          <div key={item.tekst} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <EscoSkillPill item={item} bg={bg} col={col} />
+            <span style={{ fontSize: 10, color: "#999" }}>{NIVEAUS[(beoordelingen[item.tekst] || 3) - 1]}</span>
+          </div>
+        ))}
+      </div>
+      {lijst.length > limiet && (
+        <button onClick={() => setToonAlles(v => !v)} style={{ marginTop: 12, background: "none", border: "none", color: KLEUR.messingDonker, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline", padding: 0 }}>
+          {toonAlles ? "Toon minder" : `Toon alle ${lijst.length} skills`}
+        </button>
+      )}
+    </Card>
+  );
+}
 // ─── Laatste stap: het complete skillsprofiel ──────────────────────────────────
 function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, drijfResultaat, ontwikkelAdvies, laden, genereerVerhaalEnTop5, verhaalFout, copyStory, copied, handOpslaan, saveStatus, escoMatchCount, nieuwCv, gaNaarStap, alleFeedback, haalAlleFeedbackOp }) {
   useEffect(() => {
@@ -1203,12 +1226,21 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const hardMap = new Map(), softMap = new Map();
+  const hardFreq = new Map(), softFreq = new Map();
   Object.values(functieSkills).forEach(taken => taken.forEach(t => {
-    t.hardskills.forEach(s => hardMap.set(s.tekst, s));
-    t.softskills.forEach(s => softMap.set(s.tekst, s));
+    t.hardskills.forEach(s => { hardMap.set(s.tekst, s); hardFreq.set(s.tekst, (hardFreq.get(s.tekst) || 0) + 1); });
+    t.softskills.forEach(s => { softMap.set(s.tekst, s); softFreq.set(s.tekst, (softFreq.get(s.tekst) || 0) + 1); });
   }));
-  const hardList = [...hardMap.values()];
-  const softList = [...softMap.values()];
+  // Sorteren: hoogste zelfbeoordeeld niveau eerst, bij gelijk niveau de vaker voorkomende eerst.
+  function sorteerSkills(map, freq) {
+    return [...map.values()].sort((a, b) => {
+      const na = beoordelingen[a.tekst] || 3, nb = beoordelingen[b.tekst] || 3;
+      if (nb !== na) return nb - na;
+      return (freq.get(b.tekst) || 0) - (freq.get(a.tekst) || 0);
+    });
+  }
+  const hardList = sorteerSkills(hardMap, hardFreq);
+  const softList = sorteerSkills(softMap, softFreq);
   const hobbyList = cvData.hobbySkills || [];
   const drijfTop3 = drijfResultaat ? [...drijfResultaat.gesorteerd].slice(0, 3) : null;
   const [toonFeedback, setToonFeedback] = useState(false);
@@ -1315,32 +1347,8 @@ function ProfielStap({ cvData, functieSkills, beoordelingen, wijzigBeoordeling, 
         )}
         {/* Alle skills, compact, in twee kolommen */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
-          {hardList.length > 0 && (
-            <Card style={kaartStijl}>
-              <SectionTitle>Hardskills ({hardList.length})</SectionTitle>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {hardList.map(item => (
-                  <div key={item.tekst} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <EscoSkillPill item={item} bg="#eef2ff" col="#3730a3" />
-                    <span style={{ fontSize: 10, color: "#999" }}>{NIVEAUS[(beoordelingen[item.tekst] || 3) - 1]}</span>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )}
-          {softList.length > 0 && (
-            <Card style={kaartStijl}>
-              <SectionTitle>Softskills ({softList.length})</SectionTitle>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {softList.map(item => (
-                  <div key={item.tekst} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <EscoSkillPill item={item} bg="#fef3c7" col="#92400e" />
-                    <span style={{ fontSize: 10, color: "#999" }}>{NIVEAUS[(beoordelingen[item.tekst] || 3) - 1]}</span>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )}
+          {hardList.length > 0 && <SkillsBlok titel="Hardskills" lijst={hardList} beoordelingen={beoordelingen} bg="#eef2ff" col="#3730a3" kaartStijl={kaartStijl} />}
+          {softList.length > 0 && <SkillsBlok titel="Softskills" lijst={softList} beoordelingen={beoordelingen} bg="#fef3c7" col="#92400e" kaartStijl={kaartStijl} />}
         </div>
         <p style={{ fontSize: 11, color: "#aaa", marginTop: -8, marginBottom: 16 }}>Niveau aanpassen? Ga terug naar de stap "Valideren".</p>
         {/* Opleiding & hobby's */}
