@@ -747,7 +747,10 @@ export default function App() {
       background-size: 220px 220px, 220px 220px, 220px 220px, 220px 220px, 220px 220px, 220px 220px, 220px 220px, 100% 100%;
     }
     @media print {
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
       .sterrenhemel { background: #fff !important; background-image: none !important; }
+      .niet-printen { display: none !important; }
+      .op-donker { color: #1e2a35 !important; }
     }
   `;
   if (sessieAanHetLaden) return <div className="sterrenhemel" style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}><style>{sterrenCSS}</style><Spinner /></div>;
@@ -1132,11 +1135,25 @@ function TelPil({ aantal, label, kleur, bg }) {
 }
 function FeedbackStap({ alleFeedback }) {
   const items = (alleFeedback?.items || []).filter(it => it.reacties.length > 0);
+  const vandaag = new Date().toLocaleDateString("nl-NL", { day: "numeric", month: "long", year: "numeric" });
+  function bewaarFeedbackAlsPdf() {
+    const oudeTitel = document.title;
+    document.title = `Ontvangen feedback ${vandaag}`;
+    window.print();
+    setTimeout(() => { document.title = oudeTitel; }, 800);
+  }
   return (
     <div style={{ flex: 1, padding: "28px 32px", overflowY: "auto" }}>
       <div style={{ maxWidth: 700, margin: "0 auto" }}>
-        <div style={{ fontFamily: "Georgia,serif", fontSize: 22, fontWeight: 600, color: "#fff", marginBottom: 8 }}>Ontvangen feedback</div>
-        <p style={{ fontSize: 13, color: "#c4cdd4", lineHeight: 1.6, marginBottom: 20 }}>Hier verschijnt automatisch alle feedback die collega's of leidinggevenden via een link hebben achtergelaten. De blauwe balk is jouw eigen inschatting, de messingkleurige balk die van de ander. Rijen met een gekleurd randje zijn de plekken waar jullie het verschillend zien.</p>
+        <div className="op-donker" style={{ fontFamily: "Georgia,serif", fontSize: 22, fontWeight: 600, color: "#fff", marginBottom: 4 }}>Ontvangen feedback</div>
+        <div className="op-donker" style={{ fontSize: 13, color: "#a8b3bd", marginBottom: 10 }}>{vandaag}</div>
+        <p className="op-donker" style={{ fontSize: 13, color: "#c4cdd4", lineHeight: 1.6, marginBottom: 16 }}>Hier verschijnt automatisch alle feedback die collega's of leidinggevenden via een link hebben achtergelaten. De blauwe balk is jouw eigen inschatting, de messingkleurige balk die van de ander. Rijen met een gekleurd randje zijn de plekken waar jullie het verschillend zien.</p>
+        {items.length > 0 && (
+          <div className="niet-printen" style={{ marginBottom: 16 }}>
+            <button onClick={bewaarFeedbackAlsPdf} style={{ background: "none", border: "none", color: "#8a94a0", fontSize: 12, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline", padding: 0 }}>🖨️ Feedback opslaan als PDF</button>
+            <span style={{ fontSize: 11, color: "#8a94a0", marginLeft: 12 }}>Tip: zet in het printvenster het vinkje "Kop en voetteksten" uit voor een schone pagina.</span>
+          </div>
+        )}
         <div style={{ background: "radial-gradient(circle at 50% 30%, #f1f2fb 0%, #d3d6f0 60%, #a8ade0 100%)", borderRadius: 12, padding: 30, boxShadow: "0 16px 36px rgba(92,98,160,0.35)", border: "1px solid #9299d6" }}>
           {alleFeedback?.laden && <p style={{ fontSize: 13, color: "#3c3f6b" }}>Bezig met ophalen…</p>}
           {!alleFeedback?.laden && items.length === 0 && <p style={{ fontSize: 13, color: "#3c3f6b" }}>Nog geen feedback ontvangen. Vraag 'm aan bij de stap "Skills".</p>}
